@@ -16,8 +16,12 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # ubuntu-latest runner 预装 Android SDK（ANDROID_HOME 已设置），
+      # 仅需接受许可协议（含 preview 条款），不再依赖 setup-android action
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+      - name: Grant gradlew execute permission
+        run: chmod +x gradlew
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --console=plain
       - name: Assemble debug APK
