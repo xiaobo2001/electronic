@@ -192,12 +192,15 @@ public class MainActivity extends AppCompatActivity {
     private String pendingExportMessage = "遇见你真好";
     private static final long RECORD_DURATION_MS = 12000; // 自动录制 12 秒
     private AlertDialog recordingDialog;
+    // 【修复】录制中悬浮“停止录制”按钮：随时可控，演出中途退出也能手动停
+    private Button stopRecordBtn;
 
     private final BroadcastReceiver recordStoppedReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context, Intent intent) {
             isRecording = false;
             dismissRecordingDialog();
+            hideStopRecordButton(); // 【修复】录制结束移除悬浮停止按钮
             if (ScreenRecorderService.ACTION_FAILED.equals(intent.getAction())) {
                 String err = intent.getStringExtra(ScreenRecorderService.EXTRA_ERROR);
                 new com.google.android.material.dialog.MaterialAlertDialogBuilder(MainActivity.this)
@@ -560,6 +563,7 @@ public class MainActivity extends AppCompatActivity {
             cb.setTextColor(Color.WHITE);
             cb.setTextSize(14f);
             cb.setChecked(isStyleEnabled(name));
+            cb.setTag(name); // 【加固】保存/读取都走 tag，不依赖 getText 转换
             checks.add(cb);
             box.addView(cb, new LinearLayout.LayoutParams(-1, -2));
         }
@@ -575,7 +579,8 @@ public class MainActivity extends AppCompatActivity {
                     boolean any = false;
                     for (com.google.android.material.checkbox.MaterialCheckBox cb : checks) {
                         boolean on = cb.isChecked();
-                        MMKV.defaultMMKV().encode(styleKey((String) cb.getText()), on);
+                        String name = (String) cb.getTag(); // tag 即构建时存入的样式名
+                        MMKV.defaultMMKV().encode(styleKey(name), on);
                         if (on) any = true;
                     }
                     if (!any) {
@@ -607,6 +612,7 @@ public class MainActivity extends AppCompatActivity {
         starView.setWeather(mmkv.decodeInt(KEY_WEATHER, 0));
         starView.setMoonEnabled(mmkv.decodeBool(KEY_MOON, true));
         starView.setConstellationEnabled(mmkv.decodeBool(KEY_CONSTELLATION, true));
+        starView.setTimeTintAuto(mmkv.decodeBool(KEY_MOON, true)); // 时段叠色随月亮开关
     }
 
     @Override
@@ -883,6 +889,7 @@ public class MainActivity extends AppCompatActivity {
         particleTextView.setTextColorHue(320, 350);
         rootLayout.setBackground(null);
         rootLayout.setBackgroundColor(Color.rgb(10, 0, 15));
+        wasSkyVisibleBeforeRomantic = starView.getVisibility() == View.VISIBLE; // 【修复】记录退出后要恢复的星空状态
         starView.startSky();
 
         // ===== 表白优化重制：多段台词 + 星空染色 + 樱花精灵雨 + 跟鼓点 + 开场仪式 =====
@@ -959,6 +966,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private int prevWeatherDuringRomantic = 0;
+    // 【修复】记录进入浪漫前星空是否可见，退出时恢复（否则星空永久消失，点击也无烟花）
+    private boolean wasSkyVisibleBeforeRomantic = true;
 
     /** 多段台词依次演出（#3/#8）：聚拢→心脏搏动两次→爆开成星散，逐句推进 */
     private void playConfessionLines(int lineIdx) {
@@ -1272,7 +1281,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** 纪念日存储（#14）：JSON 列表 [{date,label}] */
+    /** 纪念日存储（#14）：JSON 列表 [{date,label,lines}]，lines 附带当天台词供点击重播 */
     private void saveAnniversary(String label) {
         try {
             org.json.JSONArray arr = new org.json.JSONArray(
@@ -1281,6 +1290,13 @@ public class MainActivity extends AppCompatActivity {
             o.put("date", new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA)
                     .format(new java.util.Date()));
             o.put("label", label);
+            // 【重播】存当天台词（用换行连接），点击纪念日时按原文重演
+            StringBuilder lines = new StringBuilder();
+            for (String s : romanticLines) {
+                if (lines.length() > 0) lines.append('\n');
+                lines.append(s);
+            }
+            o.put("lines", lines.toString());
             arr.put(o);
             MMKV.defaultMMKV().encode(KEY_ANNIVERSARY, arr.toString());
         } catch (Exception ignored) {
@@ -1401,6 +1417,12 @@ public class MainActivity extends AppCompatActivity {
         RhythmFirework.getInstance().setOnBeatListener(null);
         mainHandler.removeCallbacks(floatingPetalsTask);
 
+        // 【修复】演出结束（含手动停止）自动停录：只发停止指令，不触发"800ms 后再退出浪漫"，
+        // 切断 stopRomanticMode ↔ stopRecordingService 互相调用的 800ms 无限循环（演出结束后卡死的根因）
+        if (isRecording) {
+            requestStopRecording();
+        }
+
         // 音乐淡停 800ms
         final MediaPlayer mp = mediaPlayer;
         if (mp != null) {
@@ -1438,7 +1460,12 @@ public class MainActivity extends AppCompatActivity {
         starView.setMoodStarColors(null);
 
         restoreBackground();
-        starView.stopSky();
+        // 【修复】星空恢复：进入前可见则重新启动（此前无条件 stopSky 导致退出浪漫后星星永久消失）
+        if (wasSkyVisibleBeforeRomantic) {
+            starView.startSky();
+        } else {
+            starView.stopSky();
+        }
         particleTextView.setTextColorHue(30, 70);
 
         // 【#4】恢复底部按钮栏（若进入前非纯净模式）
@@ -1716,6 +1743,17 @@ public class MainActivity extends AppCompatActivity {
     private void startCharging(float x, float y) {
         cancelCharging();
         chargeLevel = 0;
+        // 【修复】纯净模式长按 = 退出纯净模式（纯净模式下按钮栏已隐藏，
+        // 没有任何入口再打开菜单，长按是唯一自然的手势恢复方式）
+        if (isPureMode) {
+            Runnable exitPure = () -> {
+                isLongPressTriggered = true; // 抑制松手时误放烟花
+                if (isPureMode) togglePureMode();
+            };
+            chargeTasks.add(exitPure);
+            mainHandler.postDelayed(exitPure, 600);
+            return;
+        }
         for (int lv = 1; lv <= 3; lv++) {
             final int level = lv;
             Runnable r = () -> {
@@ -2011,7 +2049,7 @@ public class MainActivity extends AppCompatActivity {
                     .setDuration(200)
                     .withEndAction(() -> llBottomBar.setVisibility(View.GONE))
                     .start();
-            Toast.makeText(this, isPureMode ? "已进入纯净模式（更多菜单可切回）" : "已退出纯净模式", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, isPureMode ? "已进入纯净模式（长按屏幕退出）" : "已退出纯净模式", Toast.LENGTH_SHORT).show();
         } else {
             // 退出纯净模式：先显示再淡入
             llBottomBar.setVisibility(View.VISIBLE);
@@ -2253,7 +2291,7 @@ public class MainActivity extends AppCompatActivity {
         if (fv != null) fv.setAfterglow(on);
     }
 
-    /** 纪念日列表（#14） */
+    /** 纪念日列表（#14）：点击条目用保存的台词重演当天的浪漫演出 */
     private void showAnniversaryList() {
         try {
             org.json.JSONArray arr = new org.json.JSONArray(
@@ -2262,14 +2300,26 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "还没有纪念日，表白成功后会自动记录", Toast.LENGTH_SHORT).show();
                 return;
             }
-            String[] items = new String[arr.length()];
+            final String[] items = new String[arr.length()];
+            final String[] linesArr = new String[arr.length()];
             for (int i = 0; i < arr.length(); i++) {
                 org.json.JSONObject o = arr.getJSONObject(i);
                 items[i] = o.optString("date") + "  " + o.optString("label");
+                linesArr[i] = o.optString("lines", "遇见你真好");
             }
-            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("纪念日")
-                    .setItems(items, null)
-                    .setPositiveButton("清空", (d, w) -> MMKV.defaultMMKV().encode(KEY_ANNIVERSARY, "[]"))
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    .setTitle("纪念日（点击条目重演当天的演出）")
+                    .setItems(items, (d, w) -> {
+                        if (isRomanticMode) stopRomanticMode();
+                        String lines = linesArr[w];
+                        Toast.makeText(this, "重演：" + items[w], Toast.LENGTH_SHORT).show();
+                        startRomanticMode(lines, countdownSeconds);
+                    })
+                    .setPositiveButton("清空", (d, w) -> {
+                        MMKV.defaultMMKV().encode(KEY_ANNIVERSARY, "[]");
+                        Toast.makeText(this, "已清空纪念日", Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton("取消", null)
                     .show();
         } catch (Exception ignored) {
         }
@@ -2311,6 +2361,7 @@ public class MainActivity extends AppCompatActivity {
         MMKV.defaultMMKV().encode(KEY_CONSTELLATION, on);
         starView.setMoonEnabled(on);
         starView.setConstellationEnabled(on);
+        starView.setTimeTintAuto(on); // 【修复】背景灰调治理：时段叠色随月亮开关一并控制，关掉后背景纯黑
         Toast.makeText(this, on ? "月亮与星座已显示（今日：" + starView.getCurrentZodiacName() + "座）"
                 : "月亮与星座已隐藏", Toast.LENGTH_SHORT).show();
     }
@@ -2434,6 +2485,7 @@ public class MainActivity extends AppCompatActivity {
         isRecording = true;
 
         showRecordingDialog();
+        showStopRecordButton(); // 【修复】录制中显示停止按钮
 
         if (pendingRecordFull) {
             // ===== 录整场（#12旧）：从浪漫模式开始录到应答庆祝结束 =====
@@ -2454,6 +2506,9 @@ public class MainActivity extends AppCompatActivity {
         if (!isPureMode) togglePureMode();
 
         // 3. 启动浪漫模式（用倒计时 3 秒 + 用户文案）
+        if (isRecording) {
+            stopRecordingService(); // 【修复】手动停止浪漫演出时同步停录，不再一直“正在录制”
+        }
         mainHandler.postDelayed(() -> startRomanticMode(pendingExportMessage, 3), 400);
 
         // 4. 到点自动停止录制
@@ -2477,13 +2532,52 @@ public class MainActivity extends AppCompatActivity {
         recordingDialog = null;
     }
 
-    private void stopRecordingService() {
+    /** 【修复】录制中的悬浮“停止录制”按钮（右上角） */
+    private void showStopRecordButton() {
+        if (stopRecordBtn == null) {
+            stopRecordBtn = new Button(this);
+            stopRecordBtn.setText("⏹ 停止录制");
+            stopRecordBtn.setTextColor(Color.WHITE);
+            stopRecordBtn.setTextSize(12f);
+            stopRecordBtn.setBackgroundTintList(ColorStateList.valueOf(0xB3B31313));
+            stopRecordBtn.setOnClickListener(v -> {
+                Toast.makeText(this, "正在保存视频…", Toast.LENGTH_SHORT).show();
+                stopRecordingService();
+            });
+            android.widget.FrameLayout.LayoutParams lp =
+                    new android.widget.FrameLayout.LayoutParams(-2, -2);
+            lp.gravity = android.view.Gravity.TOP | android.view.Gravity.END;
+            lp.topMargin = 90;
+            lp.rightMargin = 40;
+            rootLayout.addView(stopRecordBtn, lp);
+        }
+        stopRecordBtn.bringToFront();
+        stopRecordBtn.setVisibility(View.VISIBLE);
+        stopRecordBtn.setAlpha(0f);
+        stopRecordBtn.animate().alpha(1f).setDuration(300).start();
+    }
+
+    private void hideStopRecordButton() {
+        if (stopRecordBtn != null) {
+            stopRecordBtn.animate().alpha(0f).setDuration(300)
+                    .withEndAction(() -> stopRecordBtn.setVisibility(View.GONE)).start();
+        }
+    }
+
+    /** 只发停止指令，不触发后续逻辑（供 stopRomanticMode 内部安全调用，切断递归循环） */
+    private void requestStopRecording() {
         if (!isRecording) return;
         Intent i = new Intent(this, ScreenRecorderService.class);
         i.setAction(ScreenRecorderService.ACTION_STOP);
         ContextCompat.startForegroundService(this, i);
-        // 录完退出浪漫模式
-        mainHandler.postDelayed(this::stopRomanticMode, 800);
+    }
+
+    /** 外部入口：停止录制，并在收尾后自动退出浪漫模式（用于 12 秒/录整场自然结束） */
+    private void stopRecordingService() {
+        requestStopRecording();
+        if (isRomanticMode) {
+            mainHandler.postDelayed(this::stopRomanticMode, 800);
+        }
     }
 
     private void shareVideo(String path) {

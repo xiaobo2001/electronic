@@ -21,16 +21,17 @@ public class GifExporter {
 
     /** 视频转 GIF，返回保存路径（失败返回 null） */
     public static String convert(Context ctx, String videoPath) {
-        MediaMetadataRetriever retriever = null;
+            MediaMetadataRetriever retriever = null;
         try {
             retriever = new MediaMetadataRetriever();
             retriever.setDataSource(videoPath);
-            long durationMs = Long.parseLong(
-                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
-            int srcW = Integer.parseInt(
-                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
-            int srcH = Integer.parseInt(
-                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+            String durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            String wStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
+            String hStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
+            if (durStr == null || wStr == null || hStr == null) return null; // 【修复】元数据缺失时 parse null 会 NPE
+            long durationMs = Long.parseLong(durStr);
+            int srcW = Integer.parseInt(wStr);
+            int srcH = Integer.parseInt(hStr);
             if (durationMs <= 0 || srcW <= 0) return null;
 
             // 采样：10fps，最长 6 秒
@@ -119,12 +120,13 @@ public class GifExporter {
             for (int c : PALETTE) {
                 os.write((c >> 16) & 0xFF); os.write((c >> 8) & 0xFF); os.write(c & 0xFF);
             }
-            // Netscape Loop Extension
+            // Netscape Loop Extension（循环）
             os.write(0x21); os.write(0xFF); os.write(11);
             os.write("NETSCAPE2.0".getBytes("US-ASCII"));
             os.write(3); os.write(1); os.write(0); os.write(0); os.write(0);
 
             byte[] pixels = new byte[w * h];
+            int written = 0;
             for (int[] frame : frames) {
                 if (frame == null) continue;
                 for (int i = 0; i < frame.length; i++) pixels[i] = (byte) nearest(frame[i]);
@@ -141,6 +143,7 @@ public class GifExporter {
                 os.write(0);
                 // LZW
                 lzwEncode(os, pixels, 8);
+                written++;
             }
             os.write(0x3B); // trailer
         } finally {
@@ -149,56 +152,61 @@ public class GifExporter {
     }
 
     /** 标准 GIF LZW（可变码长，含 Clear/EOI） */
+    /** 标准 GIF89a LZW 编码（重写修复：字典未初始化导致首轮 NPE 崩溃） */
     private static void lzwEncode(OutputStream os, byte[] pixels, int minCodeSize) throws Exception {
         os.write(minCodeSize);
         int clear = 1 << minCodeSize;
         int eoi = clear + 1;
-        int codeSize = minCodeSize + 1;
-        int nextCode = eoi + 1;
-
-        java.util.HashMap<java.util.ArrayList<Byte>, Integer> dict = new java.util.HashMap<>();
-        java.util.ArrayList<Byte> cur = new java.util.ArrayList<>();
         BitWriter bits = new BitWriter(os);
+        java.util.HashMap<String, Integer> dict = new java.util.HashMap<>();
 
-        int resetDict = 0;
+        // 码长增长规则：初始 codeSize = minCodeSize+1 (9)
+        int[] codeSize = {minCodeSize + 1};
+        int[] nextCode = {eoi + 1};
+        java.util.ArrayList<Runnable> noop = null; // (占位避免未使用告警)
+
+        // 输出初始 Clear 码
+        bits.write(clear, codeSize[0]);
+
+        // cur：当前序列（字符串形式，每字节一个 char）。单字节序列的码 = 字节值本身（隐式，不入字典）
+        StringBuilder cur = new StringBuilder();
         for (byte b : pixels) {
-            if (resetDict == 1) {
-                bits.write(clear, codeSize);
-                codeSize = minCodeSize + 1;
-                nextCode = eoi + 1;
-                dict.clear();
-                resetDict = 0;
+            char c = (char) (b & 0xFF);
+            if (cur.length() == 0) {
+                cur.append(c);
+                continue;
             }
-            java.util.ArrayList<Byte> next = new java.util.ArrayList<>(cur);
-            next.add(b);
-            Integer code = dict.get(next);
-            if (code != null) {
-                cur = next;
+            String cand = cur.toString() + c;
+            Integer hit = dict.get(cand);
+            if (hit != null) {
+                cur = new StringBuilder(cand);
+                continue;
+            }
+            // 输出当前序列的码
+            int outCode = (cur.length() == 1) ? (cur.charAt(0) & 0xFF) : dict.get(cur.toString());
+            bits.write(outCode, codeSize[0]);
+            // 新序列入字典（先增码长后存码，保证解码器同步）
+            if (nextCode[0] >= (1 << codeSize[0]) && codeSize[0] < 12) {
+                codeSize[0]++;
+            }
+            if (nextCode[0] < 4096) {
+                dict.put(cand, nextCode[0]);
+                nextCode[0]++;
             } else {
-                int outCode;
-                if (cur.isEmpty()) outCode = (b & 0xFF);
-                else outCode = dict.get(cur);
-                bits.write(outCode, codeSize);
-                if (nextCode < 4096) {
-                    dict.put(next, nextCode);
-                    if (nextCode == (1 << codeSize) && codeSize < 12) codeSize++;
-                    nextCode++;
-                } else {
-                    resetDict = 1;
-                }
-                cur = new java.util.ArrayList<>();
-                cur.add(b);
+                // 字典满：发 Clear 重置（符合标准 GIF 解码器语义）
+                bits.write(clear, codeSize[0]);
+                codeSize[0] = minCodeSize + 1;
+                nextCode[0] = eoi + 1;
+                dict.clear();
             }
+            cur = new StringBuilder().append(c);
         }
-        if (!cur.isEmpty()) {
-            Integer outCode = dict.get(cur);
-            bits.write(outCode != null ? outCode : cur.get(0) & 0xFF, codeSize);
+        if (cur.length() > 0) {
+            int outCode = (cur.length() == 1) ? (cur.charAt(0) & 0xFF) : dict.get(cur.toString());
+            bits.write(outCode, codeSize[0]);
         }
-        bits.write(eoi, codeSize);
+        bits.write(eoi, codeSize[0]);
         bits.flush();
-
-        // 打包成 255 字节数据块
-        // BitWriter 已直接按块输出，这里无额外操作
     }
 
     private static class BitWriter {
