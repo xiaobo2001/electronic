@@ -105,11 +105,12 @@ public class RomanticShareCodec {
 
     public static List<String> splitLines(String multiline) {
         List<String> out = new ArrayList<>();
-        if (multiline == null) return out;
-        for (String s : multiline.split("\n")) {
-            String t = s.trim();
-            if (!t.isEmpty()) out.add(t);
-            if (out.size() >= 4) break;
+        if (multiline != null) {
+            for (String s : multiline.split("\n")) {
+                String t = s.trim();
+                if (!t.isEmpty()) out.add(t);
+                if (out.size() >= 4) break;
+            }
         }
         if (out.isEmpty()) out.add("遇见你真好");
         return out;

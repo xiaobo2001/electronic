@@ -55,9 +55,6 @@ public final class DevicePerf {
     public final int meteorRandomMs;
     /** 同屏环境流星数上限（流星仅随机触发） */
     public final int maxMeteors;
-    /** 浪漫模式爱心轨迹拍间隔 ms：80=原版节奏（旗舰不变）；中低端加大间隔，
-     *  降低粒子池饱和度与主线程绘制压力；旋转/呼吸速率按间隔做时间补偿保持不变 */
-    public final int heartTraceIntervalMs;
 
     private DevicePerf(Context ctx) {
         Context app = ctx.getApplicationContext();
@@ -119,7 +116,6 @@ public final class DevicePerf {
                 meteorBaseMs = 5000;
                 meteorRandomMs = 5000;
                 maxMeteors = 2;
-                heartTraceIntervalMs = 80;
                 break;
             case MEDIUM:
                 starCount = 75;
@@ -135,7 +131,6 @@ public final class DevicePerf {
                 meteorBaseMs = 7000;
                 meteorRandomMs = 6000;
                 maxMeteors = 2;
-                heartTraceIntervalMs = 160;
                 break;
             case LOW:
                 starCount = 40;
@@ -151,7 +146,6 @@ public final class DevicePerf {
                 meteorBaseMs = 10000;
                 meteorRandomMs = 10000;
                 maxMeteors = 1;
-                heartTraceIntervalMs = 220;
                 break;
         }
 

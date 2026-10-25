@@ -50,6 +50,8 @@ import com.skydoves.balloon.ArrowOrientation;
 import com.skydoves.balloon.Balloon;
 import com.skydoves.balloon.BalloonSizeSpec;
 import com.tencent.mmkv.MMKV;
+import com.xiaobo.fireworks.EmojiBitmapCache;
+import com.xiaobo.fireworks.EmojiBitmapCache;
 import com.xiaobo.fireworks.FireworkConfig;
 import com.xiaobo.fireworks.FireworkView;
 import com.xiaobo.fireworks.GlobalFirework;
@@ -148,6 +150,18 @@ public class MainActivity extends AppCompatActivity {
     // ===== 纪念日（#14旧） =====
     private static final String KEY_ANNIVERSARY = "anniversary_list";
     private static final String KEY_GUIDE_SHOWN = "guide_shown";
+    private static final String KEY_THEME = "theme_id"; // 0默认 1春节 2生日 3圣诞
+    private int currentTheme = ThemeManager.THEME_DEFAULT;
+
+    // ===== 【#7】浪漫 runnable 统一清理：中途停止时一次清光所有排队演出 =====
+    private final java.util.List<Runnable> romanticCues = new java.util.ArrayList<>();
+    private boolean wasPureBeforeRomantic = false;
+    private Runnable recordFullGuard;
+    // ===== 【#16】摇一摇放烟花 =====
+    private ShakeDetector shakeDetector;
+    // ===== 【#18】台词 TTS 朗读 =====
+    private android.speech.tts.TextToSpeech tts;
+    private boolean ttsReady = false;
     // emoji 图形位图缓存（样式扩展包 #4新）
     private final java.util.HashMap<String, android.graphics.Bitmap> emojiShapeCache = new java.util.HashMap<>();
     private static final String KEY_WEATHER = "weather_mode";
@@ -255,9 +269,18 @@ public class MainActivity extends AppCompatActivity {
         rocketMode = MMKV.defaultMMKV().decodeBool(KEY_ROCKET_MODE, false);
         bgmUri = MMKV.defaultMMKV().decodeString(KEY_BGM_URI, null);
         bgmVolume = MMKV.defaultMMKV().decodeFloat(KEY_BGM_VOLUME, 0.7f);
+        currentTheme = MMKV.defaultMMKV().decodeInt(KEY_THEME, ThemeManager.THEME_DEFAULT);
         starView.startSky();
 
-        restoreBackground();
+        // 【#17】主题恢复：背景/天气由主题接管（用户无自选背景时）
+        if (MMKV.defaultMMKV().decodeInt(KEY_BG_TYPE, 0) == 0
+                && currentTheme != ThemeManager.THEME_DEFAULT) {
+            rootLayout.setBackgroundColor(ThemeManager.bgColor(currentTheme));
+            starView.setWeather(ThemeManager.weather(currentTheme));
+        } else {
+            restoreBackground();
+        }
+        handleRomanticShortcut(getIntent()); // 【#19】小组件一键浪漫
         isPureMode = MMKV.defaultMMKV().decodeBool(KEY_PURE_MODE, false);
         if (isPureMode) {
             llBottomBar.setVisibility(View.GONE);
@@ -398,6 +421,19 @@ public class MainActivity extends AppCompatActivity {
                 .duration(1.6f)
                 .build();
 
+        // ===== 【#17】节日主题：切换时替换为主题专属池 =====
+        if (currentTheme != ThemeManager.THEME_DEFAULT) {
+            FireworkConfig[] themed = ThemeManager.fireworkPool(currentTheme, scaledCount(150), customFireworkText);
+            String[] emojis = ThemeManager.poolEmojis(currentTheme);
+            if (themed != null) {
+                for (int i = 0; i < themed.length && i < emojis.length; i++) {
+                    ThemeManager.withEmoji(this, themed[i], emojis[i]);
+                }
+                randomFireworkPool = themed;
+                return;
+            }
+        }
+
         // ===== 样式扩展包（#4新）：原有5样 + 玫瑰/戒指/钻石头图形 + 金雨/彩虹圈主题 =====
         randomFireworkPool = new FireworkConfig[]{
                 // 经典圆形
@@ -501,6 +537,8 @@ public class MainActivity extends AppCompatActivity {
         }
         // 律动切后台即停（麦克风不再监听）
         if (rhythmOn) RhythmFirework.getInstance().stop();
+        // 【#16】摇一摇切后台注销传感器
+        if (shakeDetector != null) shakeDetector.unregister();
     }
 
     @Override
@@ -516,6 +554,52 @@ public class MainActivity extends AppCompatActivity {
         if (rhythmOn && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             RhythmFirework.getInstance().start(this);
         }
+        // 【#16】摇一摇前台注册
+        if (shakeDetector == null) {
+            shakeDetector = new ShakeDetector(this, this::onShake);
+        }
+        shakeDetector.register();
+    }
+
+    /** 【#16】摇一摇：满屏连发烟花（浪漫模式中不触发，避免打断演出） */
+    private void onShake() {
+        if (isRomanticMode || !fireworkReady) return;
+        int w = Math.max(1, rootLayout.getWidth());
+        int h = Math.max(1, rootLayout.getHeight());
+        FireworkView fv = GlobalFirework.getInstance().getFireworkView();
+        if (fv == null) return;
+        for (int i = 0; i < 8; i++) {
+            final int fi = i;
+            mainHandler.postDelayed(() -> {
+                GlobalFirework.getInstance().bloomSilently(
+                        w * (0.1f + random.nextFloat() * 0.8f),
+                        h * (0.12f + random.nextFloat() * 0.45f),
+                        new FireworkConfig.Builder()
+                                .colors(hueColorApp(random.nextInt(360)), Color.WHITE)
+                                .count(scaledCount(80)).range(1.0f + random.nextFloat() * 0.5f)
+                                .trail(1.2f).build());
+            }, fi * 110);
+        }
+        GlobalFirework.getInstance().playHeartbeatVibration();
+        Toast.makeText(this, "摇出满屏烟花 🎆", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleRomanticShortcut(intent);
+    }
+
+    /** 【#19】桌面小组件一键浪漫入口 */
+    private void handleRomanticShortcut(Intent intent) {
+        if (intent == null) return;
+        if (RomanticWidgetProvider.ACTION_ROMANTIC.equals(intent.getAction())) {
+            postRomanticCue(() -> {
+                if (!isRomanticMode && fireworkReady) {
+                    startRomanticMode(ThemeManager.romanticLines(currentTheme), 3);
+                }
+            }, 800);
+        }
     }
 
     @Override
@@ -527,6 +611,14 @@ public class MainActivity extends AppCompatActivity {
         mainHandler.removeCallbacksAndMessages(null);
         petalPool.clear();
         if (rhythmOn) RhythmFirework.getInstance().stop();
+        if (shakeDetector != null) shakeDetector.unregister();
+        if (tts != null) {
+            try {
+                tts.shutdown();
+            } catch (Exception ignored) {
+            }
+            tts = null;
+        }
         starView.stopSky();
         try { unregisterReceiver(recordStoppedReceiver); } catch (Exception ignored) {}
     }
@@ -779,11 +871,19 @@ public class MainActivity extends AppCompatActivity {
 
         startMusic();
 
+        // ===== 【#4】演出中隐藏底部按钮栏：防对方误触“停止浪漫”打断表白 =====
+        wasPureBeforeRomantic = isPureMode;
+        llBottomBar.animate().alpha(0f).setDuration(400)
+                .withEndAction(() -> llBottomBar.setVisibility(View.GONE)).start();
+
+        // ===== 【#18】TTS 初始化（懒，失败静默） =====
+        ensureTts();
+
         // 开场仪式（#4）：引言字 → 四方小心理聚心 → 倒计时
         particleTextView.setTextColorHue(45, 60);
         particleTextView.showText("这一刻，只为你说", () -> {
             if (!isRomanticMode) return;
-            mainHandler.postDelayed(() -> {
+            postRomanticCue(() -> {
                 if (!isRomanticMode) return;
                 particleTextView.explode(() -> {
                     if (!isRomanticMode) return;
@@ -799,14 +899,14 @@ public class MainActivity extends AppCompatActivity {
                     GlobalFirework.getInstance().bloomSilently(cx + d, cy - d, smallHeart);
                     GlobalFirework.getInstance().bloomSilently(cx - d, cy + d, smallHeart);
                     GlobalFirework.getInstance().bloomSilently(cx + d, cy + d, smallHeart);
-                    mainHandler.postDelayed(() -> {
+                    postRomanticCue(() -> {
                         if (!isRomanticMode) return;
                         GlobalFirework.getInstance().bloom(cx, cy, new FireworkConfig.Builder()
                                 .shape(FireworkConfig.Shape.HEART)
                                 .colors(Color.RED, 0xFFFF69B4)
                                 .count(scaledCount(90)).range(0.9f).trail(1.3f).build());
                         particleTextView.setTextColorHue(320, 350);
-                        mainHandler.postDelayed(() -> {
+                        postRomanticCue(() -> {
                             if (!isRomanticMode) return;
                             startCountdownSequence(seconds, message);
                         }, 900);
@@ -839,6 +939,7 @@ public class MainActivity extends AppCompatActivity {
         }
         romanticStage = 1;
         String line = romanticLines.get(lineIdx);
+        speakLine(line); // 【#18】TTS 同步朗读台词
         particleTextView.showText(line, () -> {
             if (!isRomanticMode) return;
             // 心跳震动（#11）：咚-咚
@@ -853,7 +954,7 @@ public class MainActivity extends AppCompatActivity {
                                             .start();
                                 }).start();
                     }).start();
-            mainHandler.postDelayed(() -> {
+            postRomanticCue(() -> {
                 if (!isRomanticMode) return;
                 GlobalFirework.getInstance().playHeartbeatVibration();
                 boolean last = (lineIdx == romanticLines.size() - 1);
@@ -863,7 +964,7 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     particleTextView.explode(() -> {
                         if (!isRomanticMode) return;
-                        mainHandler.postDelayed(() -> playConfessionLines(lineIdx + 1), 350);
+                        postRomanticCue(() -> playConfessionLines(lineIdx + 1), 350);
                     });
                 }
             }, 2200);
@@ -886,7 +987,7 @@ public class MainActivity extends AppCompatActivity {
         float sideOffset = Math.min(220f, w * 0.22f);
 
         // 第1波：中心升空爱心
-        mainHandler.postDelayed(() -> {
+        postRomanticCue(() -> {
             if (!isRomanticMode) return;
             GlobalFirework.getInstance().bloom(cx, cy, new FireworkConfig.Builder()
                     .shape(FireworkConfig.Shape.HEART).rocket(true)
@@ -894,7 +995,7 @@ public class MainActivity extends AppCompatActivity {
                     .count(scaledCount(120)).range(safeRange).trail(1.5f).build());
         }, 600);
         // 第2波：左右呼应
-        mainHandler.postDelayed(() -> {
+        postRomanticCue(() -> {
             if (!isRomanticMode) return;
             FireworkConfig sideConfig = new FireworkConfig.Builder()
                     .shape(FireworkConfig.Shape.HEART)
@@ -904,11 +1005,30 @@ public class MainActivity extends AppCompatActivity {
             GlobalFirework.getInstance().bloom(cx + sideOffset, cy, sideConfig);
         }, 1200);
         // 第3波：花瓣雨开启（原双层旋转爱心轨迹已按需移除，三波爱心绽放本身构成完整幕一）
-        mainHandler.postDelayed(() -> {
+        postRomanticCue(() -> {
             if (!isRomanticMode) return;
             mainHandler.post(floatingPetalsTask);
         }, 1800);
-        mainHandler.postDelayed(this::startActTwo, 14000);
+        // ===== 【#1】幕一空档填补：中段每 2.5 秒一枚随机大爱心点缀 =====
+        for (int i = 0; i < 4; i++) {
+            final int fi = i;
+            postRomanticCue(() -> {
+                if (!isRomanticMode) return;
+                int ww = rootLayout.getWidth();
+                int hh = rootLayout.getHeight();
+                GlobalFirework.getInstance().bloomSilently(
+                        ww * (0.18f + random.nextFloat() * 0.64f),
+                        hh * (0.18f + random.nextFloat() * 0.4f),
+                        new FireworkConfig.Builder()
+                                .shape(FireworkConfig.Shape.HEART)
+                                .colors(hueColorApp(330 + fi * 12), 0xFFFFD700, Color.WHITE)
+                                .count(scaledCount(100)).range(0.95f).trail(1.3f).build());
+                if (fi % 2 == 1) {
+                    GlobalFirework.getInstance().playHeartbeatVibration();
+                }
+            }, 4500 + i * 2500L);
+        }
+        postRomanticCue(this::startActTwo, 14000);
     }
 
     /** 幕二：花海（彩色爱心波次）+ 满屏流星雨时刻（#9） */
@@ -919,7 +1039,7 @@ public class MainActivity extends AppCompatActivity {
         int h = rootLayout.getHeight();
         for (int wave = 0; wave < 6; wave++) {
             final int fi = wave;
-            mainHandler.postDelayed(() -> {
+            postRomanticCue(() -> {
                 if (!isRomanticMode) return;
                 int hueBase = fi * 45;
                 FireworkConfig waveHeart = new FireworkConfig.Builder()
@@ -935,7 +1055,7 @@ public class MainActivity extends AppCompatActivity {
                 starView.spawnMeteor();
             }, wave * 1300);
         }
-        mainHandler.postDelayed(this::startActThree, 6 * 1300 + 600);
+        postRomanticCue(this::startActThree, 6 * 1300 + 600);
     }
 
     /** 幕三：终章——同心圆绽放 + 最后一句文字烟花收尾 */
@@ -948,7 +1068,7 @@ public class MainActivity extends AppCompatActivity {
         float cx = w / 2f, cy = h / 2f - 80f;
         for (int ring = 0; ring < 3; ring++) {
             final int rIdx = ring;
-            mainHandler.postDelayed(() -> {
+            postRomanticCue(() -> {
                 if (!isRomanticMode) return;
                 int n = 6 + rIdx * 3;
                 float radius = Math.min(w, h) * (0.14f + rIdx * 0.07f);
@@ -963,7 +1083,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }, ring * 900);
         }
-        mainHandler.postDelayed(() -> {
+        postRomanticCue(() -> {
             if (!isRomanticMode) return;
             String lastLine = romanticLines.get(romanticLines.size() - 1);
             GlobalFirework.getInstance().bloom(cx, cy - h * 0.05f, new FireworkConfig.Builder()
@@ -977,11 +1097,10 @@ public class MainActivity extends AppCompatActivity {
                         .shape(FireworkConfig.Shape.HEART)
                         .colors(Color.RED, 0xFFFF69B4, Color.WHITE)
                         .count(scaledCount(180)).range(1.2f).trail(1.5f).build());
-                mainHandler.postDelayed(this::showAnswerOverlay, 1200);
+                postRomanticCue(this::showAnswerOverlay, 1200);
             }, 1500);
         }, 3 * 900);
     }
-
     /** 应答时刻（#1）：我愿意 / 再想想 */
     private void showAnswerOverlay() {
         if (!isRomanticMode) return;
@@ -1017,11 +1136,36 @@ public class MainActivity extends AppCompatActivity {
         rowLp.gravity = android.view.Gravity.CENTER_HORIZONTAL;
         answerOverlay.addView(btnRow, rowLp);
 
+        // 【#4】应答时刻浮出小停止键（演出中底部栏已隐藏）
+        Button miniStop = new Button(this);
+        miniStop.setText("结束演出");
+        miniStop.setTextColor(0xFF99AABB);
+        miniStop.setBackgroundColor(0x00000000);
+        miniStop.setTextSize(12);
+        android.widget.FrameLayout.LayoutParams stopLp = new android.widget.FrameLayout.LayoutParams(-2, -2);
+        stopLp.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL;
+        stopLp.bottomMargin = 30;
+        answerOverlay.addView(miniStop, stopLp);
+        miniStop.setOnClickListener(v -> stopRomanticMode());
+
         rootLayout.addView(answerOverlay, new android.widget.FrameLayout.LayoutParams(-1, -1));
         answerOverlay.setAlpha(0f);
         answerOverlay.animate().alpha(1f).setDuration(700).start();
+        // 【#3】“我愿意”按钮呼吸脉动，吸引点击
+        ObjectAnimator pulse = ObjectAnimator.ofFloat(yesBtn, "alpha", 1f, 0.65f, 1f);
+        pulse.setDuration(1200);
+        pulse.setRepeatCount(ObjectAnimator.INFINITE);
+        pulse.start();
+        yesBtn.setTag(pulse);
         yesBtn.setOnClickListener(v -> onAnswerYes());
         thinkBtn.setOnClickListener(v -> onAnswerThink());
+        // 【#6】应答无响应保护：30 秒未选择则温柔收场
+        postRomanticCue(() -> {
+            if (isRomanticMode && answerOverlay != null) {
+                Toast.makeText(this, "无论多久，我等你", Toast.LENGTH_SHORT).show();
+                onAnswerThink();
+            }
+        }, 30000);
     }
 
     /** 应答：我愿意——终极爆发 + 金色雨 + 纪念日 + 纪念卡片 */
@@ -1037,7 +1181,7 @@ public class MainActivity extends AppCompatActivity {
         // 16 连发庆祝
         for (int i = 0; i < 16; i++) {
             final int fi = i;
-            mainHandler.postDelayed(() -> {
+            postRomanticCue(() -> {
                 if (!isRomanticMode) return;
                 FireworkConfig cfg;
                 if (fi % 4 == 0) {
@@ -1057,7 +1201,7 @@ public class MainActivity extends AppCompatActivity {
         }
         // 记入纪念日（#14）+ 生成纪念卡片（#13）
         saveAnniversary("表白成功纪念日");
-        mainHandler.postDelayed(() -> {
+        postRomanticCue(() -> {
             float age = moonAgeNow();
             String path = MementoCard.generate(this, romanticLines,
                     starView.getCurrentZodiacName(), age);
@@ -1067,7 +1211,7 @@ public class MainActivity extends AppCompatActivity {
             if (pendingRecordFull && isRecording) {
                 stopRecordingService(); // 录整场：庆祝完成后自动收尾
             }
-            mainHandler.postDelayed(() -> {
+            postRomanticCue(() -> {
                 if (isRomanticMode) stopRomanticMode();
             }, 4500);
         }, 16 * 280 + 500);
@@ -1082,7 +1226,7 @@ public class MainActivity extends AppCompatActivity {
                 .shape(FireworkConfig.Shape.TEXT).text("没关系，我等你")
                 .colors(0xFF9FB8D8, Color.WHITE)
                 .count(scaledCount(160)).range(1.0f).textSize(90f).build());
-        mainHandler.postDelayed(() -> {
+        postRomanticCue(() -> {
             if (isRomanticMode) stopRomanticMode();
             if (pendingRecordFull && isRecording) stopRecordingService();
         }, 3200);
@@ -1090,6 +1234,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void dismissAnswerOverlay() {
         if (answerOverlay != null) {
+            // 停掉按钮脉动动画
+            View yesBtn = answerOverlay.findViewWithTag(null);
             android.widget.FrameLayout ov = answerOverlay;
             answerOverlay = null;
             ov.animate().alpha(0f).setDuration(500).withEndAction(() -> rootLayout.removeView(ov)).start();
@@ -1150,7 +1296,8 @@ public class MainActivity extends AppCompatActivity {
             }
 
             mediaPlayer.setLooping(true);
-            mediaPlayer.setVolume(bgmVolume, bgmVolume);
+            // 【#5】BGM 淡入 1.5 秒（结尾淡出已有）
+            mediaPlayer.setVolume(0f, 0f);
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                 try {
                     mp.reset();
@@ -1161,6 +1308,18 @@ public class MainActivity extends AppCompatActivity {
             });
 
             mediaPlayer.start();
+            // 【#5】淡入动画
+            final MediaPlayer mpFade = mediaPlayer;
+            android.animation.ValueAnimator fadeIn = android.animation.ValueAnimator.ofFloat(0f, bgmVolume);
+            fadeIn.setDuration(1500);
+            fadeIn.addUpdateListener(a -> {
+                try {
+                    float v = (float) a.getAnimatedValue();
+                    mpFade.setVolume(v, v);
+                } catch (Exception ignored) {
+                }
+            });
+            fadeIn.start();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -1204,6 +1363,11 @@ public class MainActivity extends AppCompatActivity {
         // ===== 优雅退场（#17）：不再瞬间清场 =====
         cancelCharging();
         dismissAnswerOverlay();
+        clearRomanticCues(); // 【#7】清光全部排队演出
+        if (recordFullGuard != null) {
+            mainHandler.removeCallbacks(recordFullGuard);
+        }
+        stopTtsSpeak();
         RhythmFirework.getInstance().setOnBeatListener(null);
         mainHandler.removeCallbacks(floatingPetalsTask);
 
@@ -1247,6 +1411,13 @@ public class MainActivity extends AppCompatActivity {
         starView.stopSky();
         particleTextView.setTextColorHue(30, 70);
 
+        // 【#4】恢复底部按钮栏（若进入前非纯净模式）
+        if (!wasPureBeforeRomantic) {
+            llBottomBar.setVisibility(View.VISIBLE);
+            llBottomBar.setAlpha(0f);
+            llBottomBar.animate().alpha(1f).setDuration(500).start();
+        }
+
         heartAngle = 0;
         heartBreathPhase = 0;
         heartLoopCount = 0;
@@ -1285,8 +1456,17 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         final int currentSec = seconds;
+        // 【#2】倒计时数字升级：颜色递进（3金→2粉→1红）+ 每个数字配中心小烟花
+        int hue = currentSec >= 3 ? 45 : (currentSec == 2 ? 330 : 0);
+        int satColor = currentSec >= 3 ? 0xFFFFD700 : (currentSec == 2 ? 0xFFFF69B4 : 0xFFFF2D55);
+        particleTextView.setTextColorHue(hue, Math.min(360, hue + 20));
+        GlobalFirework.getInstance().bloomSilently(rootLayout.getWidth() / 2f,
+                rootLayout.getHeight() / 2f - 240f,
+                new FireworkConfig.Builder()
+                        .colors(satColor, Color.WHITE)
+                        .count(scaledCount(45)).range(0.7f).trail(1.1f).build());
         particleTextView.showText(String.valueOf(currentSec), () -> {
-            mainHandler.postDelayed(() -> {
+            postRomanticCue(() -> {
                 if (!isRomanticMode) return;
                 particleTextView.explode(() -> {
                     startCountdownSequence(currentSec - 1, finalMessage);
@@ -1433,6 +1613,53 @@ public class MainActivity extends AppCompatActivity {
         GlobalFirework.getInstance().bloomSilently(x, y, config);
     }
 
+    /** 【#18】TTS 懒初始化与台词朗读 */
+    private void ensureTts() {
+        if (tts != null) return;
+        try {
+            tts = new android.speech.tts.TextToSpeech(this, status -> {
+                ttsReady = (status == android.speech.tts.TextToSpeech.SUCCESS);
+                if (ttsReady) {
+                    try {
+                        tts.setLanguage(java.util.Locale.CHINA);
+                    } catch (Exception ignored) {
+                    }
+                }
+            });
+        } catch (Exception e) {
+            tts = null;
+        }
+    }
+
+    private void speakLine(String line) {
+        if (ttsReady && tts != null) {
+            try {
+                tts.speak(line, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "romantic_line");
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void stopTtsSpeak() {
+        if (ttsReady && tts != null) {
+            try {
+                tts.stop();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void clearRomanticCues() {
+        for (Runnable r : romanticCues) mainHandler.removeCallbacks(r);
+        romanticCues.clear();
+    }
+
+    /** 【#7】浪漫排队统一入口：停止时逐个移除，杜绝打断后的残影演出 */
+    private void postRomanticCue(Runnable r, long delayMs) {
+        romanticCues.add(r);
+        mainHandler.postDelayed(r, delayMs);
+    }
+
     /** 按设备性能档缩放粒子数，低端机降载 */
     private int scaledCount(int base) {
         return Math.max(20, Math.round(base * DevicePerf.get(this).fireworkCountScale));
@@ -1541,18 +1768,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** emoji 渲染成 CUSTOM 图形位图（样式扩展包 #4新） */
+    /** 【#11】emoji 位图改用库统一 EmojiBitmapCache（App/壁纸共享一份） */
     private android.graphics.Bitmap emojiShapeBitmap(String emoji) {
-        android.graphics.Bitmap cached = emojiShapeCache.get(emoji);
-        if (cached != null) return cached;
-        int px = 220;
-        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bmp);
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setTextAlign(Paint.Align.CENTER);
-        p.setTextSize(px * 0.82f);
-        c.drawText(emoji, px / 2f, px * 0.78f, p);
-        emojiShapeCache.put(emoji, bmp);
-        return bmp;
+        return EmojiBitmapCache.get(this, emoji, 220);
     }
 
     private void toggleAutoPlay() {
@@ -1860,6 +2078,14 @@ public class MainActivity extends AppCompatActivity {
             balloon.dismiss();
             showAnniversaryList();
         });
+        menuView.findViewById(R.id.tv_theme).setOnClickListener(v -> {
+            balloon.dismiss();
+            showThemePicker();
+        });
+        menuView.findViewById(R.id.tv_export_gif).setOnClickListener(v -> {
+            balloon.dismiss();
+            exportLatestVideoAsGif();
+        });
         menuView.findViewById(R.id.tv_guide).setOnClickListener(v -> {
             balloon.dismiss();
             showGuide(true);
@@ -1872,6 +2098,65 @@ public class MainActivity extends AppCompatActivity {
         balloon.showAsDropDown(anchor, 0, -16);
     }
 
+    /** 【#17】节日主题选择 */
+    private void showThemePicker() {
+        int cur = MMKV.defaultMMKV().decodeInt(KEY_THEME, ThemeManager.THEME_DEFAULT);
+        new AlertDialog.Builder(this).setTitle("节日主题")
+                .setSingleChoiceItems(ThemeManager.NAMES, cur, (d, w) -> {
+                    applyTheme(w);
+                    d.dismiss();
+                    Toast.makeText(this, "主题：" + ThemeManager.name(w) + " 🎉", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("取消", null).show();
+    }
+
+    /** 【#17】应用主题：背景色 + 天气 + 专属烟花池 */
+    private void applyTheme(int theme) {
+        currentTheme = theme;
+        MMKV.defaultMMKV().encode(KEY_THEME, theme);
+        if (theme == ThemeManager.THEME_DEFAULT) {
+            MMKV.defaultMMKV().encode(KEY_BG_TYPE, 0);
+            MMKV.defaultMMKV().encode(KEY_BG_COLOR, Color.BLACK);
+            rootLayout.setBackground(null);
+            rootLayout.setBackgroundColor(Color.BLACK);
+            starView.setWeather(SkyView.WEATHER_NONE);
+            MMKV.defaultMMKV().encode(KEY_WEATHER, SkyView.WEATHER_NONE);
+        } else {
+            MMKV.defaultMMKV().encode(KEY_BG_TYPE, 0);
+            MMKV.defaultMMKV().encode(KEY_BG_COLOR, ThemeManager.bgColor(theme));
+            rootLayout.setBackground(null);
+            rootLayout.setBackgroundColor(ThemeManager.bgColor(theme));
+            starView.setWeather(ThemeManager.weather(theme));
+            MMKV.defaultMMKV().encode(KEY_WEATHER, ThemeManager.weather(theme));
+        }
+        initFireworkConfigs(); // 重建主题烟花池
+    }
+
+    /** 【#20】把最近一次录制的 MP4 转成 GIF 动图 */
+    private void exportLatestVideoAsGif() {
+        // 找最近一次的录制文件
+        File dir = new File(android.os.Environment
+                .getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES), "RomanticFirework");
+        File[] files = dir.listFiles((f, n) -> n.endsWith(".mp4"));
+        if (files == null || files.length == 0) {
+            Toast.makeText(this, "还没有录制的视频，请先导出浪漫视频", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        final File latest = files[0];
+        Toast.makeText(this, "正在转换：" + latest.getName(), Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            String out = GifExporter.convert(this, latest.getAbsolutePath());
+            mainHandler.post(() -> {
+                if (out != null) {
+                    Toast.makeText(this, "GIF 已保存：" + out, Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "转换失败（视频可能过长或格式异常）", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }, "gif-export").start();
+    }
+
     private void updateMenuStateDots(View menuView) {
         dot(menuView, R.id.tv_weather, starView.getWeather() != SkyView.WEATHER_NONE);
         dot(menuView, R.id.tv_moon, MMKV.defaultMMKV().decodeBool(KEY_MOON, true));
@@ -1880,6 +2165,10 @@ public class MainActivity extends AppCompatActivity {
         dot(menuView, R.id.tv_rocket_mode, rocketMode);
         dot(menuView, R.id.tv_afterglow, MMKV.defaultMMKV().decodeBool(KEY_AFTERGLOW, true));
         dot(menuView, R.id.tv_pure_mode, isPureMode);
+        TextView themeTv = menuView.findViewById(R.id.tv_theme);
+        if (themeTv != null) {
+            themeTv.setText("节日主题（当前：" + ThemeManager.name(currentTheme) + "）");
+        }
     }
 
     private void dot(View menuView, int id, boolean on) {
@@ -2098,9 +2387,17 @@ public class MainActivity extends AppCompatActivity {
         showRecordingDialog();
 
         if (pendingRecordFull) {
-            // ===== 录整场（#12旧）：从浪漫模式开始录到应答庆祝结束，不自动停 =====
+            // ===== 录整场（#12旧）：从浪漫模式开始录到应答庆祝结束 =====
             pendingRecordFull = false;
-            mainHandler.postDelayed(() -> startRomanticMode(pendingExportMessage, countdownSeconds), 600);
+            postRomanticCue(() -> startRomanticMode(pendingExportMessage, countdownSeconds), 600);
+            // 【#8】录整场保护：最多 3 分钟自动停，防忘停录爆存储
+            recordFullGuard = () -> {
+                if (isRecording) {
+                    Toast.makeText(this, "录制已达 3 分钟上限，自动保存", Toast.LENGTH_SHORT).show();
+                    stopRecordingService();
+                }
+            };
+            mainHandler.postDelayed(recordFullGuard, 180000);
             return;
         }
 
