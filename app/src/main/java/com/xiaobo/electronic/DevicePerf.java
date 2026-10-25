@@ -55,6 +55,8 @@ public final class DevicePerf {
     public final int meteorRandomMs;
     /** 同屏环境流星数上限（流星仅随机触发） */
     public final int maxMeteors;
+    /** 文字烟花粒子数上限（超过则加大采样步长稀释，防止超大文字上万粒子卡顿） */
+    public final int maxTextParticles;
 
     private DevicePerf(Context ctx) {
         Context app = ctx.getApplicationContext();
@@ -116,6 +118,7 @@ public final class DevicePerf {
                 meteorBaseMs = 5000;
                 meteorRandomMs = 5000;
                 maxMeteors = 2;
+                maxTextParticles = 4500;
                 break;
             case MEDIUM:
                 starCount = 75;
@@ -131,6 +134,7 @@ public final class DevicePerf {
                 meteorBaseMs = 7000;
                 meteorRandomMs = 6000;
                 maxMeteors = 2;
+                maxTextParticles = 3500;
                 break;
             case LOW:
                 starCount = 40;
@@ -146,6 +150,7 @@ public final class DevicePerf {
                 meteorBaseMs = 10000;
                 meteorRandomMs = 10000;
                 maxMeteors = 1;
+                maxTextParticles = 2500;
                 break;
         }
 

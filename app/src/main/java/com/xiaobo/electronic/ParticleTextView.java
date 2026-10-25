@@ -47,9 +47,11 @@ public class ParticleTextView extends View {
     private Bitmap sampleBitmap;
     private Canvas sampleCanvas;
     // 文字画笔参数每次完全相同，提升为成员复用，绘制结果不变
-    private final Paint textPaint = new Paint();
+    private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     // Color.HSVToColor 临时数组复用，避免逐粒子分配
     private final float[] hsvTmp = new float[3];
+    // 档位查询移出每帧循环（onDraw 每帧只读一次字段）
+    private boolean lowEndDevice;
 
     public ParticleTextView(Context context) {
         this(context, null);
@@ -58,6 +60,7 @@ public class ParticleTextView extends View {
     public ParticleTextView(Context context, AttributeSet attrs) {
         super(context, attrs);
         paint.setAntiAlias(true);
+        lowEndDevice = DevicePerf.get(context).isLowEnd();
         // 保持性能优化：不使用 ShadowLayer，依靠粒子重叠发光
         sampleSize = DevicePerf.get(context).particleSampleSize;
         textPaint.setColor(Color.WHITE);
@@ -205,6 +208,39 @@ public class ParticleTextView extends View {
             }
         }
 
+        // ===== 【性能保护】超大文字粒子上限：超限时加大采样步长稀释（按比例，形状不变） =====
+        int maxParticles = DevicePerf.get(getContext()).maxTextParticles;
+        if (tempParticles.size() > maxParticles) {
+            int newStep = (int) Math.ceil(step * Math.sqrt(
+                    (double) tempParticles.size() / maxParticles));
+            if (newStep > step) {
+                tempParticles.clear();
+                for (int i = 0; i < width; i += newStep) {
+                    for (int j = 0; j < height; j += newStep) {
+                        if (pixels[j * width + i] != 0) {
+                            Particle p = new Particle();
+                            p.targetX = i;
+                            p.targetY = j;
+                            p.radius = 2f + random.nextFloat() * 3f;
+                            int hue = random.nextInt(hueMax - hueMin) + hueMin;
+                            hsvTmp[0] = hue;
+                            hsvTmp[1] = 0.6f;
+                            hsvTmp[2] = 1f;
+                            p.color = Color.HSVToColor(hsvTmp);
+                            double angle = random.nextDouble() * 2 * Math.PI;
+                            float r = Math.max(width, height);
+                            p.startX = (float) (width / 2f + Math.cos(angle) * r);
+                            p.startY = (float) (height / 2f + Math.sin(angle) * r);
+                            p.speedFactor = 0.5f + random.nextFloat();
+                            tempParticles.add(p);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 色相桶中心颜色（生成时重算，渲染时直接取）——已随桶化渲染回退一并移除
+
         mainHandler.post(() -> {
             particles.clear();
             particles.addAll(tempParticles);
@@ -217,9 +253,11 @@ public class ParticleTextView extends View {
         float currentProgress = progress;
         if (particles.isEmpty()) return;
 
-        // 低端机关闭光晕，省填充
-        boolean glow = !DevicePerf.get(getContext()).isLowEnd();
+        // 低端机关闭光晕，省填充（档位在构造器缓存，避免每帧查询）
+        boolean glow = !lowEndDevice;
 
+        // 渲染路径保持原版逐粒子 drawCircle（软渲染环境实测为最优）；
+        // 性能优化点：每粒子仅一次 setColor（原版 glow/core 各设一次颜色，第二次冗余）
         for (int i = 0; i < particles.size(); i++) {
             Particle p = particles.get(i);
             float curr = currentProgress * p.speedFactor;
@@ -229,14 +267,13 @@ public class ParticleTextView extends View {
             float y = p.startY + (p.targetY - p.startY) * curr;
 
             int alpha = (int) (255 * curr);
+            paint.setColor(p.color);
             if (glow) {
                 // 外层光晕：同色、大半径、低 alpha，营造发光感
-                paint.setColor(p.color);
                 paint.setAlpha(alpha / 5);
                 canvas.drawCircle(x, y, p.radius * 2.6f, paint);
             }
             // 实心核心
-            paint.setColor(p.color);
             paint.setAlpha(alpha);
             canvas.drawCircle(x, y, p.radius, paint);
         }
