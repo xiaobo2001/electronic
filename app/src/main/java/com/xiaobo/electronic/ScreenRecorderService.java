@@ -60,6 +60,10 @@ public class ScreenRecorderService extends Service {
     private MediaMuxer mediaMuxer;
     private HandlerThread encoderThread;
     private Handler encoderHandler;
+    // 【修复】Android 14+（API 34）强制要求：createVirtualDisplay 前必须注册 Callback，
+    // 否则抛 IllegalStateException: Must register a callback before starting capture
+    private MediaProjection.Callback projectionCallback;
+    private boolean callbackRegistered = false;
 
     private int videoWidth;
     private int videoHeight;
@@ -158,6 +162,16 @@ public class ScreenRecorderService extends Service {
                 stopSelf();
                 return START_NOT_STICKY;
             }
+            // 【修复】注册系统要求的回调（Android 14+ 强制），系统停止投屏时安全收尾
+            projectionCallback = new MediaProjection.Callback() {
+                @Override
+                public void onStop() {
+                    Log.w(TAG, "MediaProjection stopped by system, finishing recording");
+                    finishRecording();
+                }
+            };
+            mediaProjection.registerCallback(projectionCallback, null);
+            callbackRegistered = true;
             prepareOutput();
             setupEncoder();
             startVirtualDisplay();
@@ -290,6 +304,13 @@ public class ScreenRecorderService extends Service {
             muxerStarted = false;
 
             if (mediaProjection != null) {
+                if (callbackRegistered && projectionCallback != null) {
+                    try {
+                        mediaProjection.unregisterCallback(projectionCallback);
+                    } catch (Exception ignored) {
+                    }
+                    callbackRegistered = false;
+                }
                 try { mediaProjection.stop(); } catch (Exception ignored) {}
                 mediaProjection = null;
             }
