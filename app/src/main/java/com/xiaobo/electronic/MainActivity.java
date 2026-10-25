@@ -601,29 +601,56 @@ public class MainActivity extends AppCompatActivity {
         scroll.setLayoutParams(new android.widget.ScrollView.LayoutParams(-1, Math.min(
                 (int) (getDisplayHeightPx() * 0.42f), 480)));
 
-        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-                .setTitle("烟花样式开关")
-                .setMessage("勾选的样式参与点击与随机播放（当前启用 " + enabledCount + "/" + names.length + "）。\n点【确定】保存，点【取消】放弃修改")
-                .setView(scroll)
-                .setPositiveButton("确定", (d, w) -> {
-                    // 整体写回 MMKV 持久化
-                    for (int i = 0; i < names.length; i++) {
-                        MMKV.defaultMMKV().encode(styleKey(names[i]), pending[i]);
-                    }
-                    applyStyleFilter();
-                    int on = 0;
-                    StringBuilder onNames = new StringBuilder();
-                    for (int i = 0; i < names.length; i++) {
-                        if (pending[i]) {
-                            on++;
-                            if (onNames.length() > 0) onNames.append("、");
-                            onNames.append(names[i]);
-                        }
-                    }
-                    Toast.makeText(this, "已保存：" + on + " 种样式\n" + onNames, Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("取消", (d, w) -> Toast.makeText(this, "已取消，未保存修改", Toast.LENGTH_SHORT).show())
-                .show();
+        // 【修复】横屏下 AlertDialog 系统按钮栏会被挤压为 0 高度不可见（同浪漫设置弹窗的老病），
+        // 不再依赖 setPositiveButton，改在列表底部放显式的保存/取消按钮
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        com.google.android.material.button.MaterialButton saveBtn =
+                new com.google.android.material.button.MaterialButton(this);
+        saveBtn.setText("保存");
+        saveBtn.setTextColor(Color.WHITE);
+        saveBtn.setBackgroundTintList(ColorStateList.valueOf(0xFFE91E63));
+        com.google.android.material.button.MaterialButton cancelBtn =
+                new com.google.android.material.button.MaterialButton(this);
+        cancelBtn.setText("取消");
+        cancelBtn.setTextColor(Color.WHITE);
+        cancelBtn.setStrokeColor(ColorStateList.valueOf(0xFFFF69B4)); // 边框按钮样式（setStyle 非公开 API 改用描边属性）
+        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(0, -2, 1f);
+        LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(0, -2, 1f);
+        cancelLp.leftMargin = 24;
+        btnRow.addView(saveBtn, saveLp);
+        btnRow.addView(cancelBtn, cancelLp);
+        box.addView(btnRow, new LinearLayout.LayoutParams(-1, -2));
+
+        final androidx.appcompat.app.AlertDialog dialog =
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                        .setTitle("烟花样式开关（启用 " + enabledCount + "/" + names.length + "）")
+                        .setMessage("勾选的样式参与点击与随机播放")
+                        .setView(scroll)
+                        .show();
+
+        saveBtn.setOnClickListener(v -> {
+            // 整体写回 MMKV 持久化
+            for (int i = 0; i < names.length; i++) {
+                MMKV.defaultMMKV().encode(styleKey(names[i]), pending[i]);
+            }
+            applyStyleFilter();
+            int on = 0;
+            StringBuilder onNames = new StringBuilder();
+            for (int i = 0; i < names.length; i++) {
+                if (pending[i]) {
+                    on++;
+                    if (onNames.length() > 0) onNames.append("、");
+                    onNames.append(names[i]);
+                }
+            }
+            Toast.makeText(this, "已保存：" + on + " 种样式\n" + onNames, Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+        cancelBtn.setOnClickListener(v -> {
+            Toast.makeText(this, "已取消，未保存修改", Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
     }
 
     private int getDisplayHeightPx() {
