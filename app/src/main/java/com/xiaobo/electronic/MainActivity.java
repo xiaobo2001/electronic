@@ -547,24 +547,54 @@ public class MainActivity extends AppCompatActivity {
         randomFireworkPool = filtered.toArray(new FireworkConfig[0]);
     }
 
-    /** 样式开关对话框：可滚动复选框列表（横屏下系统多选列表会被挤压为零高度，故自建） */
+    /**
+     * 样式开关对话框（可滚动复选框，横屏适配）。
+     * 交互安全设计：
+     * - 勾选只改临时状态，点【确定】才写入 MMKV 持久化并生效；点【取消】完全丢弃；
+     * - 不允许取消最后一个样式（至少保留一种，防止点不出烟花）；
+     * - 确定后 Toast 明确反馈"已保存"，避免不确定是否生效。
+     */
     private void showStyleSwitchDialog() {
         if (allPoolNames.length == 0) initFireworkConfigs();
+        final String[] names = allPoolNames;
+        // 临时状态（从 MMKV 加载），确定时才整体写回
+        final boolean[] pending = new boolean[names.length];
+        int enabledCount = 0;
+        for (int i = 0; i < names.length; i++) {
+            pending[i] = isStyleEnabled(names[i]);
+            if (pending[i]) enabledCount++;
+        }
+
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(56, 16, 56, 16);
-        final java.util.List<com.google.android.material.checkbox.MaterialCheckBox> checks = new java.util.ArrayList<>();
-        for (int i = 0; i < allPoolNames.length; i++) {
-            final String name = allPoolNames[i];
+        final com.google.android.material.checkbox.MaterialCheckBox[] checks =
+                new com.google.android.material.checkbox.MaterialCheckBox[names.length];
+        for (int i = 0; i < names.length; i++) {
+            final int idx = i;
             com.google.android.material.checkbox.MaterialCheckBox cb =
                     new com.google.android.material.checkbox.MaterialCheckBox(this);
-            cb.setText(name);
+            cb.setText(names[i]);
             cb.setTextColor(Color.WHITE);
             cb.setTextSize(14f);
-            cb.setChecked(isStyleEnabled(name));
-            cb.setTag(name); // 【加固】保存/读取都走 tag，不依赖 getText 转换
-            checks.add(cb);
+            cb.setChecked(pending[i]);
+            cb.setOnCheckedChangeListener((btn, isChecked) -> {
+                if (isChecked) {
+                    pending[idx] = true;
+                    return;
+                }
+                // 【确认安全】尝试取消：若这是唯一启用的样式则阻止并提示
+                int on = 0;
+                for (boolean b : pending) if (b) on++;
+                if (on <= 1) {
+                    btn.setChecked(true); // 阻止取消，恢复勾选
+                    Toast.makeText(this, "至少保留一种样式（当前仅剩：" + names[idx] + "）", Toast.LENGTH_SHORT).show();
+                } else {
+                    pending[idx] = false;
+                }
+            });
+            checks[i] = cb;
             box.addView(cb, new LinearLayout.LayoutParams(-1, -2));
         }
         scroll.addView(box);
@@ -573,23 +603,26 @@ public class MainActivity extends AppCompatActivity {
 
         new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("烟花样式开关")
-                .setMessage("勾选的样式参与点击与随机播放；全部关闭时自动保留第一项")
+                .setMessage("勾选的样式参与点击与随机播放（当前启用 " + enabledCount + "/" + names.length + "）。\n点【确定】保存，点【取消】放弃修改")
                 .setView(scroll)
                 .setPositiveButton("确定", (d, w) -> {
-                    boolean any = false;
-                    for (com.google.android.material.checkbox.MaterialCheckBox cb : checks) {
-                        boolean on = cb.isChecked();
-                        String name = (String) cb.getTag(); // tag 即构建时存入的样式名
-                        MMKV.defaultMMKV().encode(styleKey(name), on);
-                        if (on) any = true;
-                    }
-                    if (!any) {
-                        MMKV.defaultMMKV().encode(styleKey(allPoolNames[0]), true);
-                        Toast.makeText(this, "已保留样式：" + allPoolNames[0], Toast.LENGTH_SHORT).show();
+                    // 整体写回 MMKV 持久化
+                    for (int i = 0; i < names.length; i++) {
+                        MMKV.defaultMMKV().encode(styleKey(names[i]), pending[i]);
                     }
                     applyStyleFilter();
+                    int on = 0;
+                    StringBuilder onNames = new StringBuilder();
+                    for (int i = 0; i < names.length; i++) {
+                        if (pending[i]) {
+                            on++;
+                            if (onNames.length() > 0) onNames.append("、");
+                            onNames.append(names[i]);
+                        }
+                    }
+                    Toast.makeText(this, "已保存：" + on + " 种样式\n" + onNames, Toast.LENGTH_SHORT).show();
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton("取消", (d, w) -> Toast.makeText(this, "已取消，未保存修改", Toast.LENGTH_SHORT).show())
                 .show();
     }
 
