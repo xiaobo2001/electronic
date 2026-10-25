@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+
+    <!-- 这是一个带有弧度的单片花瓣，旋转起来非常自然 -->
+    <path
+        android:fillColor="#FFC0CB"
+        android:pathData="M512,100 C512,100 200,400 200,700 C200,850 350,950 512,950 C674,950 824,850 824,700 C824,400 512,100 512,100 Z"/>
+
+    <!-- 加一点渐变高光，让它看起来更透亮 -->
+    <path
+        android:fillColor="#80FFFFFF"
+        android:pathData="M512,150 C512,150 300,400 300,650 C300,750 400,800 512,800 L512,150 Z"/>
+</vector>
