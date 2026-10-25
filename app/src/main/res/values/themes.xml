@@ -3,6 +3,11 @@
     <style name="Base.Theme.Electronic" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- 启动窗口背景与主界面深色基调一致，消除冷启动白闪（仅首帧前可见） -->
         <item name="android:windowBackground">@android:color/black</item>
+        <!-- MD3 粉金色系：弹窗按钮/选中态/输入框焦点色与 App 浪漫风格统一 -->
+        <item name="colorPrimary">#FFFF69B4</item>
+        <item name="colorOnPrimary">#FFFFFFFF</item>
+        <item name="colorSecondaryContainer">#3DFF69B4</item>
+        <item name="colorOnSecondaryContainer">#FFFFD700</item>
         <!-- Customize your light theme here. -->
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
     </style>

@@ -200,7 +200,7 @@ public class MainActivity extends AppCompatActivity {
             dismissRecordingDialog();
             if (ScreenRecorderService.ACTION_FAILED.equals(intent.getAction())) {
                 String err = intent.getStringExtra(ScreenRecorderService.EXTRA_ERROR);
-                new AlertDialog.Builder(MainActivity.this)
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(MainActivity.this)
                         .setTitle("录制失败")
                         .setMessage(err)
                         .setPositiveButton("知道了", null)
@@ -209,7 +209,7 @@ public class MainActivity extends AppCompatActivity {
             }
             String path = intent.getStringExtra(ScreenRecorderService.EXTRA_OUTPUT_PATH);
             if (path != null) {
-                new AlertDialog.Builder(MainActivity.this)
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(MainActivity.this)
                         .setTitle("录制完成")
                         .setMessage("视频已保存：" + path)
                         .setPositiveButton("分享", (d, w) -> shareVideo(path))
@@ -647,44 +647,35 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // 主体布局
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(40, 8, 40, 8);
+        // ===== 弹窗重构：Material MD3 组件 XML 布局（dialog_romantic_settings.xml）=====
+        // 告别代码手拼控件：TextInputLayout/Slider/MaterialButton/MaterialCheckBox 自动获得 MD3 样式
+        View view = getLayoutInflater().inflate(R.layout.dialog_romantic_settings, null);
+        final com.google.android.material.textfield.TextInputEditText msgInput =
+                view.findViewById(R.id.et_lines);
+        final com.google.android.material.textfield.TextInputEditText timeInput =
+                view.findViewById(R.id.et_seconds);
+        final com.google.android.material.slider.Slider volumeSlider =
+                view.findViewById(R.id.slider_volume);
+        final TextView volumeLabel = view.findViewById(R.id.tv_volume_label);
+        final com.google.android.material.button.MaterialButton bgmPick =
+                view.findViewById(R.id.btn_pick_bgm);
+        final com.google.android.material.checkbox.MaterialCheckBox recordFull =
+                view.findViewById(R.id.cb_record_full);
+        final com.google.android.material.button.MaterialButton btnGenerate =
+                view.findViewById(R.id.btn_gen_code);
+        final com.google.android.material.button.MaterialButton btnImport =
+                view.findViewById(R.id.btn_import_code);
+        final com.google.android.material.button.MaterialButton btnStart =
+                view.findViewById(R.id.btn_start);
 
-        final EditText msgInput = new EditText(this);
-        msgInput.setHint("告白台词（可输多行，每行一句，最多四句）");
         String preset = MMKV.defaultMMKV().decodeString("last_romantic_lines", "小美 遇见你真好\n往后余生，请多指教");
         msgInput.setText(preset);
-        // 横屏高度有限：多行输入限高，保证底部按钮栏不被挤压
-        msgInput.setMinLines(1);
-        msgInput.setMaxLines(3);
-
-        final EditText timeInput = new EditText(this);
-        timeInput.setHint("倒计时秒数 (1-60，求婚可设长倒数)");
         timeInput.setText(String.valueOf(countdownSeconds));
-        timeInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-
-        // BGM 音量滑杆（表白优化#7）
-        final android.widget.SeekBar volumeBar = new android.widget.SeekBar(this);
-        volumeBar.setMax(100);
-        volumeBar.setProgress((int) (bgmVolume * 100));
-        final TextView volumeLabel = new TextView(this);
-        volumeLabel.setText("背景音乐音量 " + (int) (bgmVolume * 100) + "%");
-        volumeLabel.setTextColor(Color.WHITE);
-        volumeBar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(android.widget.SeekBar s, int p, boolean b) {
-                volumeLabel.setText("背景音乐音量 " + p + "%");
-            }
-            @Override public void onStartTrackingTouch(android.widget.SeekBar s) { }
-            @Override public void onStopTrackingTouch(android.widget.SeekBar s) { }
-        });
-
-        // 从手机选歌（表白优化#7）
-        final TextView bgmPick = new TextView(this);
+        volumeSlider.setValue(Math.max(0f, Math.min(100f, bgmVolume * 100f)));
+        volumeLabel.setText("背景音乐音量 " + (int) volumeSlider.getValue() + "%");
+        volumeSlider.addOnChangeListener((slider, value, fromUser) ->
+                volumeLabel.setText("背景音乐音量 " + (int) value + "%"));
         bgmPick.setText(bgmUri == null ? "🎵 背景音乐：内置浪漫曲（点击换歌）" : "🎵 背景音乐：已选自手机（点击重新选）");
-        bgmPick.setTextColor(0xFFFFD700);
-        bgmPick.setPadding(0, 12, 0, 0);
         bgmPick.setOnClickListener(v -> {
             Intent it = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             it.addCategory(Intent.CATEGORY_OPENABLE);
@@ -692,60 +683,10 @@ public class MainActivity extends AppCompatActivity {
             pickBgmLauncher.launch(it);
         });
 
-        // 录整场开关（表白优化#12）
-        final android.widget.CheckBox recordFull = new android.widget.CheckBox(this);
-        recordFull.setText("同步录制整场表白视频（录到结束）");
-        recordFull.setTextColor(Color.WHITE);
-
-        layout.addView(msgInput);
-        layout.addView(timeInput);
-        layout.addView(volumeLabel);
-        layout.addView(volumeBar);
-        layout.addView(bgmPick);
-        layout.addView(recordFull);
-
-        // 功能按钮行
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-        btnRow.setPadding(0, 16, 0, 0);
-
-        Button btnGenerate = new Button(this);
-        btnGenerate.setText("生成分享码");
-        btnGenerate.setTextColor(Color.WHITE);
-        btnGenerate.setBackgroundTintList(ColorStateList.valueOf(0x80000000));
-        btnRow.addView(btnGenerate);
-
-        Button btnImport = new Button(this);
-        btnImport.setText("导入分享码");
-        btnImport.setTextColor(Color.WHITE);
-        btnImport.setBackgroundTintList(ColorStateList.valueOf(0x80000000));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        params.leftMargin = 20;
-        btnImport.setLayoutParams(params);
-        btnRow.addView(btnImport);
-
-        layout.addView(btnRow);
-
-        // 显式开始按钮（不依赖 AlertDialog 系统按钮栏：横屏下系统按钮会被挤压不可见）
-        Button btnStart = new Button(this);
-        btnStart.setText("开始表演 💖");
-        btnStart.setTextColor(Color.WHITE);
-        btnStart.setBackgroundTintList(ColorStateList.valueOf(0xFFE91E63));
-        LinearLayout.LayoutParams startLp = new LinearLayout.LayoutParams(-1, -2);
-        startLp.topMargin = 24;
-        layout.addView(btnStart, startLp);
-
-        // 修复：横屏下内容过高会把对话框按钮栏挤压到不可见，包裹 ScrollView 保证内容可滚
-        android.widget.ScrollView dialogScroll = new android.widget.ScrollView(this);
-        dialogScroll.addView(layout);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        androidx.appcompat.app.AlertDialog dialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("开启顶级浪漫模式")
-                .setMessage("三幕剧：告白台词→爱心轨迹与花海→终章绽放，结尾有应答时刻")
-                .setView(dialogScroll)
+                .setMessage("三幕剧：告白台词 → 爱心轨迹与花海 → 终章绽放，结尾有应答时刻")
+                .setView(view)
                 .show();
 
         btnStart.setOnClickListener(v -> {
@@ -759,7 +700,7 @@ public class MainActivity extends AppCompatActivity {
                 seconds = 3;
             }
             countdownSeconds = seconds;
-            bgmVolume = Math.max(0f, volumeBar.getProgress() / 100f);
+            bgmVolume = Math.max(0f, volumeSlider.getValue() / 100f);
             MMKV.defaultMMKV().encode(KEY_BGM_VOLUME, bgmVolume);
             pendingRecordFull = recordFull.isChecked();
             dialog.dismiss();
@@ -797,11 +738,13 @@ public class MainActivity extends AppCompatActivity {
             String clipText = getClipboardText();
             final EditText importInput = new EditText(this);
             importInput.setHint("粘贴分享码");
+            importInput.setTextColor(Color.WHITE);
+            importInput.setPadding(48, 24, 48, 24);
             if (RomanticShareCodec.isValidCode(clipText)) {
                 importInput.setText(clipText);
             }
 
-            new AlertDialog.Builder(this)
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                     .setTitle("导入浪漫分享码")
                     .setView(importInput)
                     .setPositiveButton("导入", (d, which) -> {
@@ -814,7 +757,7 @@ public class MainActivity extends AppCompatActivity {
                         msgInput.setText(info.message);
                         timeInput.setText(String.valueOf(info.seconds));
                         if (info.volume >= 0f) {
-                            volumeBar.setProgress((int) (info.volume * 100));
+                            volumeSlider.setValue(Math.max(0f, Math.min(100f, info.volume * 100f)));
                         }
                         Toast.makeText(this, "导入成功", Toast.LENGTH_SHORT).show();
                     })
@@ -1905,7 +1848,7 @@ public class MainActivity extends AppCompatActivity {
     private void showColorPickerDialog() {
         String[] names = {"纯黑", "深蓝", "深紫", "暗红", "墨绿", "深灰"};
         int[] colors = {Color.BLACK, Color.rgb(10, 10, 50), Color.rgb(40, 0, 60), Color.rgb(60, 0, 0), Color.rgb(0, 40, 20), Color.rgb(30, 30, 30)};
-        new AlertDialog.Builder(this).setTitle("背景颜色").setItems(names, (d, w) -> {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("背景颜色").setItems(names, (d, w) -> {
             MMKV.defaultMMKV().encode(KEY_BG_TYPE, 0);
             MMKV.defaultMMKV().encode(KEY_BG_COLOR, colors[w]);
             rootLayout.setBackground(null);
@@ -1916,11 +1859,13 @@ public class MainActivity extends AppCompatActivity {
     private void showCustomTextDialog() {
         final EditText input = new EditText(this);
         input.setHint("输入烟花文字，如：恭喜发财");
+        input.setTextColor(Color.WHITE);
+        input.setPadding(48, 28, 48, 8);
         input.setText(customFireworkText);
         // 限制文字长度，避免过长导致显示效果差
         input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(8)});
 
-        new AlertDialog.Builder(this)
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("自定义文字烟花")
                 .setMessage("输入后点击屏幕、随机播放都会触发该文字烟花")
                 .setView(input)
@@ -2101,7 +2046,7 @@ public class MainActivity extends AppCompatActivity {
     /** 【#17】节日主题选择 */
     private void showThemePicker() {
         int cur = MMKV.defaultMMKV().decodeInt(KEY_THEME, ThemeManager.THEME_DEFAULT);
-        new AlertDialog.Builder(this).setTitle("节日主题")
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("节日主题")
                 .setSingleChoiceItems(ThemeManager.NAMES, cur, (d, w) -> {
                     applyTheme(w);
                     d.dismiss();
@@ -2183,7 +2128,7 @@ public class MainActivity extends AppCompatActivity {
     private void showAutoPatternPicker() {
         String[] names = {"经典随机", "波浪扫射", "环形聚拢", "音乐节拍"};
         int cur = MMKV.defaultMMKV().decodeInt(KEY_AUTO_PATTERN, GlobalFirework.PATTERN_WAVE);
-        new AlertDialog.Builder(this).setTitle("随机播放剧本").setSingleChoiceItems(names, cur, (d, w) -> {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("随机播放剧本").setSingleChoiceItems(names, cur, (d, w) -> {
             MMKV.defaultMMKV().encode(KEY_AUTO_PATTERN, w);
             if (isAutoPlaying) {
                 GlobalFirework.getInstance().stopAutoShow();
@@ -2220,7 +2165,7 @@ public class MainActivity extends AppCompatActivity {
                 org.json.JSONObject o = arr.getJSONObject(i);
                 items[i] = o.optString("date") + "  " + o.optString("label");
             }
-            new AlertDialog.Builder(this).setTitle("纪念日")
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("纪念日")
                     .setItems(items, null)
                     .setPositiveButton("清空", (d, w) -> MMKV.defaultMMKV().encode(KEY_ANNIVERSARY, "[]"))
                     .show();
@@ -2232,7 +2177,7 @@ public class MainActivity extends AppCompatActivity {
     private void showGuide(boolean force) {
         if (!force && MMKV.defaultMMKV().decodeBool(KEY_GUIDE_SHOWN, false)) return;
         MMKV.defaultMMKV().encode(KEY_GUIDE_SHOWN, true);
-        new AlertDialog.Builder(this)
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("玩法速览")
                 .setMessage("🔥 点击屏幕：随机烟花绽放\n⏳ 长按屏幕蓄力：松开放中/大/超大全屏烟花\n🏮 更多菜单：孔明灯模式、下雪天气、月亮星座、音乐律动\n💖 顶级浪漫：三幕剧告白，结尾有应答时刻，可录制整场视频\n🎥 长按不再切纯净模式，纯净开关在更多菜单里")
                 .setPositiveButton("知道了", null)
@@ -2243,7 +2188,7 @@ public class MainActivity extends AppCompatActivity {
     private void showWeatherPicker() {
         String[] names = {"关闭", "下雪 ❄", "樱花 🌸", "银杏 🍂"};
         int[] modes = {SkyView.WEATHER_NONE, SkyView.WEATHER_SNOW, SkyView.WEATHER_SAKURA, SkyView.WEATHER_GINKGO};
-        new AlertDialog.Builder(this).setTitle("天气粒子").setItems(names, (d, w) -> {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("天气粒子").setItems(names, (d, w) -> {
             MMKV.defaultMMKV().encode(KEY_WEATHER, modes[w]);
             starView.setWeather(modes[w]);
             Toast.makeText(this, "天气：" + names[w], Toast.LENGTH_SHORT).show();
@@ -2341,7 +2286,7 @@ public class MainActivity extends AppCompatActivity {
     private void checkAndShowShareCodeDialog() {
         String clipText = getClipboardText();
         if (RomanticShareCodec.isValidCode(clipText)) {
-            new AlertDialog.Builder(this)
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                     .setTitle("检测到浪漫分享码")
                     .setMessage("是否立即导入并开启浪漫模式？")
                     .setPositiveButton("立即导入", (d, w) -> importRomanticCodeFromClipboard())
@@ -2361,7 +2306,9 @@ public class MainActivity extends AppCompatActivity {
         final EditText input = new EditText(this);
         input.setHint("输入告白文案");
         input.setText(pendingExportMessage);
-        new AlertDialog.Builder(this)
+        input.setTextColor(Color.WHITE);
+        input.setPadding(48, 28, 48, 8);
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("导出浪漫视频")
                 .setMessage("将自动播放 " + (RECORD_DURATION_MS / 1000) + " 秒浪漫特效并录制成 MP4")
                 .setView(input)
@@ -2414,7 +2361,7 @@ public class MainActivity extends AppCompatActivity {
     private void showRecordingDialog() {
         dismissRecordingDialog();
         View v = getLayoutInflater().inflate(R.layout.loading_dialog, null);
-        recordingDialog = new AlertDialog.Builder(this)
+        recordingDialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setView(v)
                 .setCancelable(false)
                 .create();
