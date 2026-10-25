@@ -757,13 +757,7 @@ public class MainActivity extends AppCompatActivity {
         if (isAutoPlaying) toggleAutoPlay();
         isRomanticMode = true;
         heartTick = 0;
-        // 按设备档位取爱心轨迹节奏：中低端拉大拍间隔降低粒子池饱和度，
-        // 角度/呼吸按间隔时间补偿，旋转速率不变；锚点按“约 1 秒一次”换算成拍数
-        heartTraceIntervalMs = DevicePerf.get(this).heartTraceIntervalMs;
-        heartStepScale = heartTraceIntervalMs / 80f;
-        heartAnchorEveryTicks = Math.max(1, Math.round(1000f / heartTraceIntervalMs));
-        btnRomantic.setText("停止浪漫");
-        // 粒子文字切换为粉紫色系
+        btnRomantic.setText("停止浪漫");        // 粒子文字切换为粉紫色系
         particleTextView.setTextColorHue(320, 350);
         rootLayout.setBackground(null);
         rootLayout.setBackgroundColor(Color.rgb(10, 0, 15));
@@ -876,7 +870,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** 幕一：三波爱心 + 持续爱心轨迹 + 花瓣雨，持续约 14 秒后进幕二 */
+    /** 幕一：三波爱心绽放 + 花瓣雨，持续约 14 秒后进幕二 */
     private void startActOne() {
         if (!isRomanticMode) return;
         romanticStage = 1;
@@ -909,13 +903,9 @@ public class MainActivity extends AppCompatActivity {
             GlobalFirework.getInstance().bloom(cx - sideOffset, cy, sideConfig);
             GlobalFirework.getInstance().bloom(cx + sideOffset, cy, sideConfig);
         }, 1200);
-        // 第3波：持续爱心轨迹 + 花瓣雨
+        // 第3波：花瓣雨开启（原双层旋转爱心轨迹已按需移除，三波爱心绽放本身构成完整幕一）
         mainHandler.postDelayed(() -> {
             if (!isRomanticMode) return;
-            heartAngle = 0;
-            heartBreathPhase = 0;
-            heartLoopCount = 0;
-            mainHandler.post(heartFireworkTask);
             mainHandler.post(floatingPetalsTask);
         }, 1800);
         mainHandler.postDelayed(this::startActTwo, 14000);
@@ -952,7 +942,6 @@ public class MainActivity extends AppCompatActivity {
     private void startActThree() {
         if (!isRomanticMode) return;
         romanticStage = 3;
-        mainHandler.removeCallbacks(heartFireworkTask);
         particleTextView.explode(null);
         int w = rootLayout.getWidth();
         int h = rootLayout.getHeight();
@@ -1216,7 +1205,6 @@ public class MainActivity extends AppCompatActivity {
         cancelCharging();
         dismissAnswerOverlay();
         RhythmFirework.getInstance().setOnBeatListener(null);
-        mainHandler.removeCallbacks(heartFireworkTask);
         mainHandler.removeCallbacks(floatingPetalsTask);
 
         // 音乐淡停 800ms
@@ -1264,7 +1252,6 @@ public class MainActivity extends AppCompatActivity {
         heartLoopCount = 0;
         romanticStage = 0;
     }
-
 
 //    private void startCountdownSequence(String finalMessage) {
 //        particleTextView.showText("3", () -> {
@@ -1333,61 +1320,8 @@ public class MainActivity extends AppCompatActivity {
 //        }, 1000);
 //    }
 
-    private void showFinalConfession(String message) {
-        if (!isRomanticMode) return;
-        particleTextView.showText(message, null);
-
-        float cx = rootLayout.getWidth() / 2f;
-        float cy = rootLayout.getHeight() / 2f - 100f;
-        int h = rootLayout.getHeight();
-        int w = rootLayout.getWidth();
-        int barHeight = llBottomBar.getHeight();
-
-        final float topMargin = 50f;
-        final float bottomReserved = barHeight > 0 ? barHeight + 60f : 220f;
-
-        // 动态计算安全爆炸范围
-        float safeRange = Math.min(1.0f, (h - bottomReserved - topMargin) / (h * 0.9f));
-        float sideRange = safeRange * 0.7f;
-        float sideOffset = Math.min(220f, w * 0.22f); // 两侧爱心偏移量适配屏幕宽度
-
-        // 第1波：中心升空爱心
-        mainHandler.postDelayed(() -> {
-            if (!isRomanticMode) return;
-            FireworkConfig finaleConfig = new FireworkConfig.Builder()
-                    .shape(FireworkConfig.Shape.HEART)
-                    .rocket(true)
-                    .colors(Color.RED, 0xFFFF69B4, Color.WHITE)
-                    .count(scaledCount(120))
-                    .range(safeRange)
-                    .trail(1.5f)
-                    .build();
-            GlobalFirework.getInstance().bloom(cx, cy, finaleConfig);
-        }, 600);
-
-        // 第2波：左右两侧爱心呼应
-        mainHandler.postDelayed(() -> {
-            if (!isRomanticMode) return;
-            FireworkConfig sideConfig = new FireworkConfig.Builder()
-                    .shape(FireworkConfig.Shape.HEART)
-                    .colors(0xFFFF69B4, 0xFFFFD700)
-                    .count(scaledCount(90))
-                    .range(sideRange)
-                    .trail(1.2f)
-                    .build();
-            GlobalFirework.getInstance().bloom(cx - sideOffset, cy, sideConfig);
-            GlobalFirework.getInstance().bloom(cx + sideOffset, cy, sideConfig);
-        }, 1200);
-
-        // 第3波：开启持续爱心轨迹 + 花瓣雨
-        mainHandler.postDelayed(() -> {
-            heartAngle = 0;
-            heartBreathPhase = 0;
-            heartLoopCount = 0;
-            mainHandler.post(heartFireworkTask);
-            mainHandler.post(floatingPetalsTask);
-        }, 1800);
-    }
+    // 原单幕 showFinalConfession 已被三幕剧（playConfessionLines → startActOne/Two/Three → 应答）替代，
+    // 其中的双层旋转爱心轨迹（heartFireworkTask）亦按需移除。
 
 
 //    private final Runnable heartFireworkTask = new Runnable() {
@@ -1408,98 +1342,7 @@ public class MainActivity extends AppCompatActivity {
 //        }
 //    };
 
-
-    private final Runnable heartFireworkTask = new Runnable() {
-        @Override
-        public void run() {
-            if (!isRomanticMode) return;
-            int w = rootLayout.getWidth();
-            int h = rootLayout.getHeight();
-            int barHeight = llBottomBar.getHeight();
-
-            // 控件未测量完成时延后执行
-            if (w <= 0 || h <= 0) {
-                mainHandler.postDelayed(this, 80);
-                return;
-            }
-
-            float cx = w / 2f;
-            float cy = h / 2f - 100f;
-
-            // 边距配置：四周留白 + 底部额外预留按钮区域
-            final float sideMargin = 50f;
-            final float topMargin = 50f;
-            final float bottomReserved = barHeight > 0 ? barHeight + 60f : 220f;
-
-            // 爱心参数方程极值：x ±16，y方向上5下17（数学坐标系）
-            final float HEART_MAX_X = 16f;
-            final float HEART_MAX_Y_TOP = 5f;   // 顶部向上延伸
-            final float HEART_MAX_Y_BOTTOM = 17f; // 底部向下延伸（尖部）
-
-            // 分别计算四个方向允许的最大缩放值，取最小值保证完全在屏幕内
-            float scaleByLeft = (cx - sideMargin) / HEART_MAX_X;
-            float scaleByRight = (w - cx - sideMargin) / HEART_MAX_X;
-            float scaleByTop = (cy - topMargin) / HEART_MAX_Y_TOP;
-            float scaleByBottom = (h - cy - bottomReserved) / HEART_MAX_Y_BOTTOM;
-
-            float maxOuterScale = Math.min(
-                    Math.min(scaleByLeft, scaleByRight),
-                    Math.min(scaleByTop, scaleByBottom)
-            );
-            maxOuterScale = Math.max(maxOuterScale, 10f); // 最小尺寸保护
-
-            // 呼吸缩放效果（按拍间隔做时间补偿，速率不变）
-            heartBreathPhase += 0.05f * heartStepScale;
-            float breathScale = 1f + 0.12f * (float) Math.sin(heartBreathPhase);
-            float finalOuterScale = maxOuterScale * breathScale;
-            float finalInnerScale = maxOuterScale * 0.6f * breathScale; // 内层比例
-
-            // 性能优化：轨迹点直接驱动渲染器，视觉与 bloom 完全一致，
-            // 但不逐次触发音效/震动系统调用；每 N 拍保留一发带反馈的 bloom 作轰鸣锚点
-            boolean feedbackAnchor = (++heartTick % heartAnchorEveryTicks) == 0;
-
-            // 诊断：实测拍长与锚点触发情况（主线程拥塞时 dt 会远大于设定间隔）
-            long nowMs = System.currentTimeMillis();
-            if (heartTick % 10 == 1) {
-                Log.i("HeartTrace", "tick=" + heartTick + " dt=" + (lastHeartTickMs == 0 ? 0 : nowMs - lastHeartTickMs)
-                        + "ms 设定=" + heartTraceIntervalMs + "ms anchorEvery=" + heartAnchorEveryTicks);
-            }
-            if (feedbackAnchor) {
-                Log.i("HeartTrace", "anchor bloom, tick=" + heartTick);
-            }
-            lastHeartTickMs = nowMs;
-
-            // 外层大爱心（正向旋转）
-            fireHeartPoint(cx, cy, finalOuterScale, heartAngle, feedbackAnchor);
-            fireHeartPoint(cx, cy, finalOuterScale, -heartAngle, false);
-
-            // 内层小爱心（反向旋转，增加层次感）
-            fireHeartPoint(cx, cy, finalInnerScale, -heartAngle * 1.2, false);
-            fireHeartPoint(cx, cy, finalInnerScale, heartAngle * 1.2, false);
-
-            // 旋转角度按拍间隔做时间补偿，各档位转速一致
-            heartAngle += 0.12 * heartStepScale;
-            if (heartAngle > Math.PI * 2) {
-                heartAngle = 0;
-                heartLoopCount++;
-                // 每2圈中心爆发一次大爱心 - 动态限制爆炸范围
-                if (heartLoopCount % 2 == 0) {
-                    float safeRange = Math.min(1.0f, (h - bottomReserved - topMargin) / (h * 0.9f));
-                    FireworkConfig bigHeart = new FireworkConfig.Builder()
-                            .shape(FireworkConfig.Shape.HEART)
-                            .rocket(true)
-                            .colors(Color.RED, 0xFFFF69B4, Color.WHITE)
-                            .count(scaledCount(140))
-                            .range(safeRange)
-                            .trail(1.6f)
-                            .build();
-                    GlobalFirework.getInstance().bloom(cx, cy, bigHeart);
-                }
-            }
-            mainHandler.postDelayed(this, heartTraceIntervalMs);
-        }
-    };
-
+    // 原双层旋转爱心轨迹（heartFireworkTask）已按需移除：三波爱心绽放 + 花瓣雨构成幕一
 
     private final Runnable floatingPetalsTask = new Runnable() {
         @Override
@@ -1582,21 +1425,9 @@ public class MainActivity extends AppCompatActivity {
         animY.start();
     }
 
-    private void fireHeartPoint(float cx, float cy, float scale, double t, boolean withFeedback) {
-        double xVal = 16 * Math.pow(Math.sin(t), 3);
-        double yVal = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-        float px = cx + (float) (xVal * scale);
-        float py = cy - (float) (yVal * scale);
-        if (withFeedback) {
-            GlobalFirework.getInstance().bloom(px, py, romanticHeartConfig); // 复用全局配置，不要重复创建
-        } else {
-            launchOnFireworkView(px, py, romanticHeartConfig);
-        }
-    }
-
     /**
      * 库 v1.2.0 正式 API：无反馈发射（粒子路径与 bloom 完全一致，不触发逐次音效/震动）。
-     * 替代早期通过 findViewWithTag 直取渲染器的临时方案。
+     * 替代早期通过 findViewWithTag 直取渲染器的临时方案。保留供高频场景使用。
      */
     private void launchOnFireworkView(float x, float y, FireworkConfig config) {
         GlobalFirework.getInstance().bloomSilently(x, y, config);

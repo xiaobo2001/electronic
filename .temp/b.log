@@ -17,11 +17,7 @@ Daemon will be stopped at the end of the build
 > Task :app:processDebugManifest UP-TO-DATE
 > Task :app:processDebugManifestForPackage UP-TO-DATE
 > Task :app:processDebugResources UP-TO-DATE
-
-> Task :app:compileDebugJavaWithJavac
-注: D:\electronic\app\src\main\java\com\xiaobo\electronic\MainActivity.java使用或覆盖了已过时的 API。
-注: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
-
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
 > Task :app:mergeDebugShaders UP-TO-DATE
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
@@ -44,7 +40,6 @@ Daemon will be stopped at the end of the build
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleDebug
-[Incubating] Problems report is available at: file:///D:/electronic/build/reports/problems/problems-report.html
 
-BUILD SUCCESSFUL in 37s
-33 actionable tasks: 4 executed, 29 up-to-date
+BUILD SUCCESSFUL in 17s
+33 actionable tasks: 3 executed, 30 up-to-date
