@@ -429,13 +429,15 @@ public class MainActivity extends AppCompatActivity {
                 for (int i = 0; i < themed.length && i < emojis.length; i++) {
                     ThemeManager.withEmoji(this, themed[i], emojis[i]);
                 }
-                randomFireworkPool = themed;
+                allPoolConfigs = themed;
+                allPoolNames = ThemeManager.THEME_POOL_NAMES[currentTheme];
+                applyStyleFilter();
                 return;
             }
         }
 
         // ===== 样式扩展包（#4新）：原有5样 + 玫瑰/戒指/钻石头图形 + 金雨/彩虹圈主题 =====
-        randomFireworkPool = new FireworkConfig[]{
+        allPoolConfigs = new FireworkConfig[]{
                 // 经典圆形
                 new FireworkConfig.Builder()
                         .colors(hueColorApp(random.nextInt(360)))
@@ -504,6 +506,91 @@ public class MainActivity extends AppCompatActivity {
                         .count(scaledCount(180)).range(1.2f).trail(1.2f)
                         .build()
         };
+        allPoolNames = new String[]{"圆形", "爱心", "五角星", "火箭升空", "文字烟花",
+                "玫瑰🌹", "戒指💍", "钻石💎", "金色雨", "彩虹圈"};
+        applyStyleFilter();
+    }
+
+    // ===== 【图形样式开关】：每个烟花样式独立开关，默认全部开启 =====
+    /** 完整样式池（含名字，与 allPoolConfigs 同索引） */
+    private FireworkConfig[] allPoolConfigs = new FireworkConfig[0];
+    private String[] allPoolNames = new String[0];
+
+    /** 样式开关存储 key */
+    private static String styleKey(String name) {
+        return "style_enabled_" + name;
+    }
+
+    private boolean isStyleEnabled(String name) {
+        return MMKV.defaultMMKV().decodeBool(styleKey(name), true);
+    }
+
+    /** 按开关过滤出生效池：点击/随机播放只从已开启样式中随机 */
+    private void applyStyleFilter() {
+        if (allPoolConfigs.length == 0) {
+            randomFireworkPool = new FireworkConfig[0];
+            return;
+        }
+        java.util.List<FireworkConfig> filtered = new java.util.ArrayList<>();
+        for (int i = 0; i < allPoolConfigs.length; i++) {
+            if (i >= allPoolNames.length || isStyleEnabled(allPoolNames[i])) {
+                filtered.add(allPoolConfigs[i]);
+            }
+        }
+        if (filtered.isEmpty()) {
+            // 兑底：全部关闭时保留第一个样式，避免点不出烟花
+            filtered.add(allPoolConfigs[0]);
+        }
+        randomFireworkPool = filtered.toArray(new FireworkConfig[0]);
+    }
+
+    /** 样式开关对话框：可滚动复选框列表（横屏下系统多选列表会被挤压为零高度，故自建） */
+    private void showStyleSwitchDialog() {
+        if (allPoolNames.length == 0) initFireworkConfigs();
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(56, 16, 56, 16);
+        final java.util.List<com.google.android.material.checkbox.MaterialCheckBox> checks = new java.util.ArrayList<>();
+        for (int i = 0; i < allPoolNames.length; i++) {
+            final String name = allPoolNames[i];
+            com.google.android.material.checkbox.MaterialCheckBox cb =
+                    new com.google.android.material.checkbox.MaterialCheckBox(this);
+            cb.setText(name);
+            cb.setTextColor(Color.WHITE);
+            cb.setTextSize(14f);
+            cb.setChecked(isStyleEnabled(name));
+            checks.add(cb);
+            box.addView(cb, new LinearLayout.LayoutParams(-1, -2));
+        }
+        scroll.addView(box);
+        scroll.setLayoutParams(new android.widget.ScrollView.LayoutParams(-1, Math.min(
+                (int) (getDisplayHeightPx() * 0.42f), 480)));
+
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("烟花样式开关")
+                .setMessage("勾选的样式参与点击与随机播放；全部关闭时自动保留第一项")
+                .setView(scroll)
+                .setPositiveButton("确定", (d, w) -> {
+                    boolean any = false;
+                    for (com.google.android.material.checkbox.MaterialCheckBox cb : checks) {
+                        boolean on = cb.isChecked();
+                        MMKV.defaultMMKV().encode(styleKey((String) cb.getText()), on);
+                        if (on) any = true;
+                    }
+                    if (!any) {
+                        MMKV.defaultMMKV().encode(styleKey(allPoolNames[0]), true);
+                        Toast.makeText(this, "已保留样式：" + allPoolNames[0], Toast.LENGTH_SHORT).show();
+                    }
+                    applyStyleFilter();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private int getDisplayHeightPx() {
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        return Math.max(dm.heightPixels, 600);
     }
 
     /** 复用库 v1.2.0 SkyView：按设备档位 + 用户设置下发夜空参数 */
@@ -2030,6 +2117,10 @@ public class MainActivity extends AppCompatActivity {
         menuView.findViewById(R.id.tv_export_gif).setOnClickListener(v -> {
             balloon.dismiss();
             exportLatestVideoAsGif();
+        });
+        menuView.findViewById(R.id.tv_style_switch).setOnClickListener(v -> {
+            balloon.dismiss();
+            showStyleSwitchDialog();
         });
         menuView.findViewById(R.id.tv_guide).setOnClickListener(v -> {
             balloon.dismiss();

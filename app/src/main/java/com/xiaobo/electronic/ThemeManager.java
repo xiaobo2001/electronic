@@ -19,6 +19,14 @@ public class ThemeManager {
 
     public static final String[] NAMES = {"默认夜空", "春节 🧧", "生日 🎂", "圣诞 🎄"};
 
+    /** 各主题烟花池的样式名（与 fireworkPool 返回顺序一致，供样式开关显示） */
+    public static final String[][] THEME_POOL_NAMES = {
+            {},
+            {"福字烟花", "红金圆", "红包🧧", "火箭金"},
+            {"蛋糕🎂", "生日快乐字", "气球🎈"},
+            {"圣诞树🎄", "雪花", "Merry Xmas字"}
+    };
+
     public static String name(int theme) {
         return NAMES[theme];
     }
