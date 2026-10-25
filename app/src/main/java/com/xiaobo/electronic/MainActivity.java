@@ -2039,13 +2039,24 @@ public class MainActivity extends AppCompatActivity {
                 .setArrowSize(10) // 指向箭头大小
                 .setArrowOrientation(ArrowOrientation.BOTTOM) // 箭头指向底部的「更多」按钮
                 .setElevation(8) // 阴影
-                .setDismissWhenClicked(true)
+                .setDismissWhenClicked(false) // 【修复】滚动菜单的手势会被误判为点击而关闭弹窗；各菜单项自行 dismiss
                 .setDismissWhenTouchOutside(true)
                 .setLifecycleOwner(this) // 自动绑定生命周期，防泄漏
                 .build();
 
         // 绑定点击事件
         View menuView = balloon.getContentView();
+
+        // ===== 【修复】菜单无法滑动 =====
+        // 根因：ScrollView 的 android:maxHeight 属性无效（ScrollView 不支持该属性），
+        // 菜单全高展开后弹窗超出屏幕，ScrollView 因内容不超自身高度而永不滚动。
+        // 修复：代码里动态限制为屏高 60%，内容超出后即可正常滚动。
+        android.widget.ScrollView menuScroll = menuView.findViewById(R.id.menu_scroll);
+        if (menuScroll != null) {
+            int maxHeight = (int) (getResources().getDisplayMetrics().heightPixels * 0.60f);
+            menuScroll.getLayoutParams().height = maxHeight;
+            menuScroll.setLayoutParams(menuScroll.getLayoutParams());
+        }
         menuView.findViewById(R.id.tv_custom_text).setOnClickListener(v -> {
             balloon.dismiss();
             showCustomTextDialog();
