@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,11 +28,27 @@ import java.util.concurrent.RejectedExecutionException;
  */
 public class ParticleTextView extends View {
 
+    /** 入场特效风格（随机特效#20）：像 PPT 翻页动画，每句台词随机抽一种 */
+    public enum EntranceStyle {
+        GATHER,      // 四面八方聚拢（原版）
+        FLY_LEFT,    // 左侧飞入
+        FLY_RIGHT,   // 右侧飞入
+        DROP,        // 自上而下落下
+        RISE,        // 自下而上升起
+        FADE_CENTER, // 原地淡入放大
+        WAVE,        // 波浪式从左到右擦除
+        BOUNCE       // 弹跳聚拢（过冲回弹）
+    }
+
     private final List<Particle> particles = new ArrayList<>();
     private final Paint paint = new Paint();
     private ValueAnimator animator;
     private float progress = 0f;
     private final Random random = new Random();
+
+    // 当前入场风格与派生开关（showText 主线程设置后，后台生成粒子时读取）
+    private EntranceStyle entranceStyle = EntranceStyle.GATHER;
+    private boolean scaleIn = false; // FADE_CENTER：半径随进度放大
 
     // 线程池处理计算
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -50,6 +67,8 @@ public class ParticleTextView extends View {
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     // Color.HSVToColor 临时数组复用，避免逐粒子分配
     private final float[] hsvTmp = new float[3];
+    // 【性能#22】文字包围盒复用（采样范围裁剪用，仅后台采样线程访问）
+    private final Rect textBBox = new Rect();
     // 档位查询移出每帧循环（onDraw 每帧只读一次字段）
     private boolean lowEndDevice;
 
@@ -75,8 +94,14 @@ public class ParticleTextView extends View {
     }
 
     public void showText(String text, Runnable onEnd) {
+        showText(text, EntranceStyle.GATHER, onEnd);
+    }
+
+    public void showText(String text, EntranceStyle style, Runnable onEnd) {
+        entranceStyle = style;
+        scaleIn = (style == EntranceStyle.FADE_CENTER);
         if (getWidth() == 0 || getHeight() == 0) {
-            post(() -> showText(text, onEnd));
+            post(() -> showText(text, style, onEnd));
             return;
         }
 
@@ -94,7 +119,9 @@ public class ParticleTextView extends View {
         if (animator != null) animator.cancel();
         animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(1200);
-        animator.setInterpolator(new DecelerateInterpolator());
+        // BOUNCE：过冲回弹；其余：减速滑入
+        animator.setInterpolator(entranceStyle == EntranceStyle.BOUNCE
+                ? new OvershootInterpolator(1.6f) : new DecelerateInterpolator());
         animator.addUpdateListener(animation -> {
             progress = (float) animation.getAnimatedValue();
             invalidate();
@@ -171,6 +198,18 @@ public class ParticleTextView extends View {
         // 绘制文字到 Bitmap
         canvas.drawText(text, width / 2f, y, textPaint);
 
+        // ===== 【性能#22】采样范围裁剪：只扫文字实际包围盒，跳过全屏空白 =====
+        // drawText 以 (width/2, y) 为中心基线，把 bbox 平移到画布坐标；
+        // 采样量从屏面积降到文字面积（长台词/竖屏下降 80%+），生成结果不变
+        textPaint.getTextBounds(text, 0, text.length(), textBBox);
+        int bx0 = Math.max(0, (int) (width / 2f + textBBox.left) - 4);
+        int bx1 = Math.min(width, (int) (width / 2f + textBBox.right) + 4);
+        int by0 = Math.max(0, (int) (y + textBBox.top) - 4);
+        int by1 = Math.min(height, (int) (y + textBBox.bottom) + 4);
+        if (bx1 <= bx0 || by1 <= by0) {
+            mainHandler.post(() -> particles.clear()); // 空内容保护：不产生粒子
+            return;
+        }
 
         int step = sampleSize; // 采样密度（低端机自动加大，减少粒子数）
         // 直接读取像素数组优化性能；复用数组避免反复分配 width*height 大小的 int[]
@@ -180,8 +219,8 @@ public class ParticleTextView extends View {
         int[] pixels = reusablePixels;
         sampleBitmap.getPixels(pixels, 0, width, 0, 0, width, height);
 
-        for (int i = 0; i < width; i += step) {
-            for (int j = 0; j < height; j += step) {
+        for (int i = bx0; i < bx1; i += step) {
+            for (int j = by0; j < by1; j += step) {
                 if (pixels[j * width + i] != 0) {
                     Particle p = new Particle();
                     p.targetX = i;
@@ -195,13 +234,7 @@ public class ParticleTextView extends View {
                     hsvTmp[2] = 1f;
                     p.color = Color.HSVToColor(hsvTmp);
 
-
-                    // 随机起始点
-                    double angle = random.nextDouble() * 2 * Math.PI;
-                    float r = Math.max(width, height);
-                    p.startX = (float) (width / 2f + Math.cos(angle) * r);
-                    p.startY = (float) (height / 2f + Math.sin(angle) * r);
-                    p.speedFactor = 0.5f + random.nextFloat();
+                    applyEntrance(p, width, height); // 【随机特效#20】按风格定起点/延迟
 
                     tempParticles.add(p);
                 }
@@ -215,8 +248,8 @@ public class ParticleTextView extends View {
                     (double) tempParticles.size() / maxParticles));
             if (newStep > step) {
                 tempParticles.clear();
-                for (int i = 0; i < width; i += newStep) {
-                    for (int j = 0; j < height; j += newStep) {
+                for (int i = bx0; i < bx1; i += newStep) {
+                    for (int j = by0; j < by1; j += newStep) {
                         if (pixels[j * width + i] != 0) {
                             Particle p = new Particle();
                             p.targetX = i;
@@ -227,11 +260,7 @@ public class ParticleTextView extends View {
                             hsvTmp[1] = 0.6f;
                             hsvTmp[2] = 1f;
                             p.color = Color.HSVToColor(hsvTmp);
-                            double angle = random.nextDouble() * 2 * Math.PI;
-                            float r = Math.max(width, height);
-                            p.startX = (float) (width / 2f + Math.cos(angle) * r);
-                            p.startY = (float) (height / 2f + Math.sin(angle) * r);
-                            p.speedFactor = 0.5f + random.nextFloat();
+                            applyEntrance(p, width, height);
                             tempParticles.add(p);
                         }
                     }
@@ -247,6 +276,43 @@ public class ParticleTextView extends View {
         });
     }
 
+    /** 【随机特效#20】按入场风格确定粒子起点与出场延迟 */
+    private void applyEntrance(Particle p, int width, int height) {
+        p.speedFactor = 0.5f + random.nextFloat();
+        double angle = random.nextDouble() * 2 * Math.PI;
+        float r = Math.max(width, height);
+        switch (entranceStyle) {
+            case FLY_LEFT:
+                p.startX = -width * 0.2f;
+                p.startY = p.targetY;
+                break;
+            case FLY_RIGHT:
+                p.startX = width * 1.2f;
+                p.startY = p.targetY;
+                break;
+            case DROP: // 自上而下：从目标点上方落下，保留少量横向飘移
+                p.startX = p.targetX + (random.nextFloat() - 0.5f) * 40f;
+                p.startY = p.targetY - height * (0.5f + random.nextFloat() * 0.4f);
+                break;
+            case RISE: // 自下而上
+                p.startX = p.targetX + (random.nextFloat() - 0.5f) * 40f;
+                p.startY = p.targetY + height * (0.5f + random.nextFloat() * 0.4f);
+                break;
+            case FADE_CENTER: // 原地淡入放大：起点=终点，靠 onDraw 半径/透明度渐变
+                p.startX = p.targetX;
+                p.startY = p.targetY;
+                break;
+            case WAVE: // 波浪擦除：圆周起点 + 从左到右依次点亮
+                p.startX = (float) (width / 2f + Math.cos(angle) * r);
+                p.startY = (float) (height / 2f + Math.sin(angle) * r);
+                p.delay = Math.min(0.5f, (p.targetX / (float) width) * 0.5f);
+                break;
+            default: // GATHER / BOUNCE：四面八方聚拢（BOUNCE 靠插值器过冲回弹）
+                p.startX = (float) (width / 2f + Math.cos(angle) * r);
+                p.startY = (float) (height / 2f + Math.sin(angle) * r);
+        }
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -255,27 +321,42 @@ public class ParticleTextView extends View {
 
         // 低端机关闭光晕，省填充（档位在构造器缓存，避免每帧查询）
         boolean glow = !lowEndDevice;
+        boolean bounce = (entranceStyle == EntranceStyle.BOUNCE); // 过冲允许 curr>1
 
         // 渲染路径保持原版逐粒子 drawCircle（软渲染环境实测为最优）；
         // 性能优化点：每粒子仅一次 setColor（原版 glow/core 各设一次颜色，第二次冗余）
         for (int i = 0; i < particles.size(); i++) {
             Particle p = particles.get(i);
-            float curr = currentProgress * p.speedFactor;
-            if (curr > 1f) curr = 1f;
+            // 【随机特效#20】带出场延迟的粒子：延迟过后才出发（波浪擦除用）
+            float t = currentProgress;
+            if (p.delay > 0f) {
+                t = (t - p.delay) / (1f - p.delay);
+                if (t < 0f) t = 0f;
+            }
+            float curr = t * p.speedFactor;
+            if (curr < 0f) curr = 0f;
+            if (curr > 1f && !bounce) curr = 1f;
 
             float x = p.startX + (p.targetX - p.startX) * curr;
             float y = p.startY + (p.targetY - p.startY) * curr;
 
             int alpha = (int) (255 * curr);
+            if (alpha > 255) alpha = 255;
+            if (alpha < 0) alpha = 0;
+            float radius = p.radius;
+            if (scaleIn) { // FADE_CENTER：半径随进度从 15% 放大到 100%
+                float rr = Math.min(1f, curr);
+                radius = p.radius * (0.15f + 0.85f * rr);
+            }
             paint.setColor(p.color);
             if (glow) {
                 // 外层光晕：同色、大半径、低 alpha，营造发光感
                 paint.setAlpha(alpha / 5);
-                canvas.drawCircle(x, y, p.radius * 2.6f, paint);
+                canvas.drawCircle(x, y, radius * 2.6f, paint);
             }
             // 实心核心
             paint.setAlpha(alpha);
-            canvas.drawCircle(x, y, p.radius, paint);
+            canvas.drawCircle(x, y, radius, paint);
         }
     }
 
@@ -291,5 +372,6 @@ public class ParticleTextView extends View {
         float radius;
         int color;
         float speedFactor;
+        float delay; // 【随机特效#20】归一化出场延迟（0~0.5，波浪擦除用）
     }
 }

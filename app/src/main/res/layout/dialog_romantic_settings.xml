@@ -18,7 +18,7 @@
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="告白台词（每行一句，最多四句）">
+            android:hint="告白台词（每行一句，最多十句，写满更有仪式感）">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_lines"
@@ -26,8 +26,8 @@
                 android:layout_height="wrap_content"
                 android:gravity="top"
                 android:inputType="textMultiLine"
-                android:maxLines="2"
-                android:minLines="1"
+                android:maxLines="6"
+                android:minLines="3"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>

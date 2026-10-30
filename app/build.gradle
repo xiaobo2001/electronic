@@ -10,8 +10,8 @@ android {
         applicationId "com.xiaobo.electronic"
         minSdk 24
         targetSdk 35
-        versionCode 1114
-        versionName "1.1.4"
+        versionCode 1115
+        versionName "1.1.5"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

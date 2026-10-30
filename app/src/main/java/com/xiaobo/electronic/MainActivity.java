@@ -838,7 +838,7 @@ public class MainActivity extends AppCompatActivity {
 
         androidx.appcompat.app.AlertDialog dialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("开启顶级浪漫模式")
-                .setMessage("三幕剧：告白台词 → 爱心轨迹与花海 → 终章绽放，结尾有应答时刻")
+                .setMessage("三幕剧：多句告白依次绽放 → 爱心花海 → 终章绽放，结尾有应答时刻")
                 .setView(view)
                 .show();
 
@@ -1039,7 +1039,10 @@ public class MainActivity extends AppCompatActivity {
         romanticStage = 1;
         String line = romanticLines.get(lineIdx);
         speakLine(line); // 【#18】TTS 同步朗读台词
-        particleTextView.showText(line, () -> {
+        // 【随机特效#20】每句台词随机入场（像 PPT 翻页动画：聚拢/飞入/落下/升起/淡入/波浪/弹跳）
+        ParticleTextView.EntranceStyle entrance =
+                LINE_ENTRANCES[random.nextInt(LINE_ENTRANCES.length)];
+        particleTextView.showText(line, entrance, () -> {
             if (!isRomanticMode) return;
             // 心跳震动（#11）：咚-咚
             GlobalFirework.getInstance().playHeartbeatVibration();
@@ -1053,6 +1056,7 @@ public class MainActivity extends AppCompatActivity {
                                             .start();
                                 }).start();
                     }).start();
+            // 【演出拉长#19】停留时长按字数动态：短句不拖沓、长句读得完，TTS 朗读留足余量
             postRomanticCue(() -> {
                 if (!isRomanticMode) return;
                 GlobalFirework.getInstance().playHeartbeatVibration();
@@ -1061,16 +1065,48 @@ public class MainActivity extends AppCompatActivity {
                     // 最后一句不爆开，保留在幕尾由应答前收束
                     startActOne();
                 } else {
+                    bloomLineAccent(lineIdx); // 【演出拉长#19】句尾配特效烟花，文字段不空场
                     particleTextView.explode(() -> {
                         if (!isRomanticMode) return;
                         postRomanticCue(() -> playConfessionLines(lineIdx + 1), 350);
                     });
                 }
-            }, 2200);
+            }, lineDwellMs(line));
         });
     }
 
-    /** 幕一：三波爱心绽放 + 花瓣雨，持续约 14 秒后进幕二 */
+    /** 台词停留时长（演出拉长#19）：基础 1.9s + 每字 260ms，下限 2.8s、上限 5.4s */
+    private long lineDwellMs(String line) {
+        int len = line == null ? 0 : line.trim().length();
+        return Math.max(2800, Math.min(5400, 1900 + len * 260L));
+    }
+
+    /** 台词入场特效池（随机特效#20）：每句随机抽取，像 PPT 翻页动画一样不重样 */
+    private static final ParticleTextView.EntranceStyle[] LINE_ENTRANCES =
+            ParticleTextView.EntranceStyle.values();
+
+    /** 句尾特效（演出拉长#19 + 女生心动向#21）：形状随句序轮换——爱心→玫瑰🌹→星星→戒指💍→圆形，
+     *  花与钻戒是女生最吃的两个意象，逐句都有惊喜；每三句补一颗流星 */
+    private void bloomLineAccent(int lineIdx) {
+        int w = rootLayout.getWidth();
+        int h = rootLayout.getHeight();
+        float px = w * (0.2f + random.nextFloat() * 0.6f);
+        float py = h * (0.16f + random.nextFloat() * 0.3f);
+        FireworkConfig.Builder b = new FireworkConfig.Builder()
+                .colors(hueColorApp((320 + lineIdx * 14) % 360), 0xFFFFD700, Color.WHITE)
+                .count(scaledCount(85)).range(0.8f).trail(1.2f);
+        switch (lineIdx % 5) {
+            case 0: b.shape(FireworkConfig.Shape.HEART); break;
+            case 1: b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹")); break;
+            case 2: b.shape(FireworkConfig.Shape.STAR); break;
+            case 3: b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("💍")); break;
+            default: b.shape(FireworkConfig.Shape.CIRCLE); break;
+        }
+        GlobalFirework.getInstance().bloomSilently(px, py, b.build());
+        if (lineIdx % 3 == 2) starView.spawnMeteor(); // 台词段穿插流星
+    }
+
+    /** 幕一：三波爱心绽放 + 花瓣雨 + 五角星尾声，持续约 16 秒后进幕二（#19 拉长） */
     private void startActOne() {
         if (!isRomanticMode) return;
         romanticStage = 1;
@@ -1109,7 +1145,7 @@ public class MainActivity extends AppCompatActivity {
             mainHandler.post(floatingPetalsTask);
         }, 1800);
         // ===== 【#1】幕一空档填补：中段每 2.5 秒一枚随机大爱心点缀 =====
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             final int fi = i;
             postRomanticCue(() -> {
                 if (!isRomanticMode) return;
@@ -1127,10 +1163,18 @@ public class MainActivity extends AppCompatActivity {
                 }
             }, 4500 + i * 2500L);
         }
-        postRomanticCue(this::startActTwo, 14000);
+        // ===== 【演出拉长#19】幕一尾声：金色五角星升空，平稳接住幕二开场 =====
+        postRomanticCue(() -> {
+            if (!isRomanticMode) return;
+            GlobalFirework.getInstance().bloom(cx, cy - h * 0.06f, new FireworkConfig.Builder()
+                    .shape(FireworkConfig.Shape.STAR).rocket(true)
+                    .colors(0xFFFFD700, Color.WHITE)
+                    .count(scaledCount(110)).range(1.0f).trail(1.4f).build());
+        }, 14000);
+        postRomanticCue(this::startActTwo, 16000);
     }
 
-    /** 幕二：花海（彩色爱心波次）+ 满屏流星雨时刻（#9） */
+    /** 幕二：玫瑰花海（玫瑰/爱心波次交替）+ 满屏流星雨时刻（#9 + 女生心动向#21） */
     private void startActTwo() {
         if (!isRomanticMode) return;
         romanticStage = 2;
@@ -1141,10 +1185,17 @@ public class MainActivity extends AppCompatActivity {
             postRomanticCue(() -> {
                 if (!isRomanticMode) return;
                 int hueBase = fi * 45;
-                FireworkConfig waveHeart = new FireworkConfig.Builder()
-                        .shape(FireworkConfig.Shape.HEART)
+                FireworkConfig.Builder b = new FireworkConfig.Builder()
                         .colors(hueColorApp(hueBase), hueColorApp((hueBase + 40) % 360), Color.WHITE)
-                        .count(scaledCount(70)).range(0.85f).trail(1.2f).build();
+                        .count(scaledCount(70)).range(0.85f).trail(1.2f);
+                if (fi % 2 == 1) {
+                    // 女生心动向#21：奇数波绽放玫瑰（真·玫瑰花海），末波钻石收尾
+                    b.shape(FireworkConfig.Shape.CUSTOM)
+                            .shapeBitmap(emojiShapeBitmap(fi == 5 ? "💎" : "🌹"));
+                } else {
+                    b.shape(FireworkConfig.Shape.HEART);
+                }
+                FireworkConfig waveHeart = b.build();
                 float px = w * (0.2f + 0.6f * (fi % 3) / 2f);
                 float py = h * (0.25f + 0.2f * ((fi + 1) % 3) / 2f);
                 GlobalFirework.getInstance().bloomSilently(px, py, waveHeart);
@@ -1189,13 +1240,26 @@ public class MainActivity extends AppCompatActivity {
                     .shape(FireworkConfig.Shape.TEXT).text(lastLine)
                     .colors(0xFFFFD700, 0xFFFF69B4)
                     .count(scaledCount(200)).range(1.2f).trail(1.4f)
-                    .textSize(110f).rocket(true).build());
+                    .textSize(fitFireworkTextSize(lastLine, 110f)).rocket(true).build());
             mainHandler.postDelayed(() -> {
                 if (!isRomanticMode) return;
                 GlobalFirework.getInstance().bloom(cx, cy, new FireworkConfig.Builder()
                         .shape(FireworkConfig.Shape.HEART)
                         .colors(Color.RED, 0xFFFF69B4, Color.WHITE)
                         .count(scaledCount(180)).range(1.2f).trail(1.5f).build());
+                // 【女生心动向#21】终章求婚意象：戒指升空 + 左右玫瑰簇拥，把“那句问话”的氛围拉满
+                GlobalFirework.getInstance().bloomSilently(cx, cy - h * 0.18f, new FireworkConfig.Builder()
+                        .shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("💍")).rocket(true)
+                        .colors(0xFFFFD700, Color.WHITE)
+                        .count(scaledCount(140)).range(1.0f).trail(1.3f).build());
+                GlobalFirework.getInstance().bloomSilently(cx - w * 0.26f, cy, new FireworkConfig.Builder()
+                        .shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹"))
+                        .colors(0xFFFF2D55, 0xFFFF69B4)
+                        .count(scaledCount(130)).range(0.9f).trail(1.2f).build());
+                GlobalFirework.getInstance().bloomSilently(cx + w * 0.26f, cy, new FireworkConfig.Builder()
+                        .shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹"))
+                        .colors(0xFFFF2D55, 0xFFFF69B4)
+                        .count(scaledCount(130)).range(0.9f).trail(1.2f).build());
                 postRomanticCue(this::showAnswerOverlay, 1200);
             }, 1500);
         }, 3 * 900);
@@ -1223,10 +1287,13 @@ public class MainActivity extends AppCompatActivity {
         Button yesBtn = new Button(this);
         yesBtn.setText("我愿意 💗");
         yesBtn.setTextColor(Color.WHITE);
+        yesBtn.setTextSize(18); // 【#21】主按钮加大：这一刻她只需要看这颗心
         yesBtn.setBackgroundTintList(ColorStateList.valueOf(0xFFE91E63));
         Button thinkBtn = new Button(this);
         thinkBtn.setText("再想想 🤔");
         thinkBtn.setTextColor(Color.WHITE);
+        thinkBtn.setTextSize(13); // 【#21】副按钮弱化：不给压力，但主角是“我愿意”
+        thinkBtn.setAlpha(0.8f);
         thinkBtn.setBackgroundTintList(ColorStateList.valueOf(0x80000000));
         btnRow.addView(yesBtn);
         btnRow.addView(thinkBtn);
@@ -1256,8 +1323,10 @@ public class MainActivity extends AppCompatActivity {
         pulse.setRepeatCount(ObjectAnimator.INFINITE);
         pulse.start();
         yesBtn.setTag(pulse);
+        yesPulseAnimator = pulse; // 【#21】存字段，收场时可靠停掉
         yesBtn.setOnClickListener(v -> onAnswerYes());
         thinkBtn.setOnClickListener(v -> onAnswerThink());
+        startAnswerHeartRain(); // 【#21】等待她回答时，满屏缓缓飘落小爱心
         // 【#6】应答无响应保护：30 秒未选择则温柔收场
         postRomanticCue(() -> {
             if (isRomanticMode && answerOverlay != null) {
@@ -1267,7 +1336,45 @@ public class MainActivity extends AppCompatActivity {
         }, 30000);
     }
 
-    /** 应答：我愿意——终极爆发 + 金色雨 + 纪念日 + 纪念卡片 */
+    // ===== 应答爱心雨（女生心动向#21）：等她回答的时刻，爱心/花辫/星光缓缓飘落 =====
+    private Runnable answerHeartRainTask;
+    private ObjectAnimator yesPulseAnimator;
+
+    private void startAnswerHeartRain() {
+        stopAnswerHeartRain();
+        answerHeartRainTask = new Runnable() {
+            @Override
+            public void run() {
+                if (!isRomanticMode || answerOverlay == null) return;
+                String[] em = {"💗", "💕", "💖", "🌸", "✨"};
+                TextView hv = new TextView(MainActivity.this);
+                hv.setText(em[random.nextInt(em.length)]);
+                hv.setTextSize(16 + random.nextInt(10));
+                int ow = answerOverlay.getWidth() > 0 ? answerOverlay.getWidth() : rootLayout.getWidth();
+                android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(-2, -2);
+                lp.leftMargin = ow > 120 ? random.nextInt(ow - 120) : 0;
+                answerOverlay.addView(hv, lp);
+                hv.setAlpha(0f);
+                hv.animate().alpha(0.85f)
+                        .translationY(rootLayout.getHeight() * (0.6f + random.nextFloat() * 0.25f))
+                        .setDuration(2600 + random.nextInt(1400))
+                        .withEndAction(() -> {
+                            if (answerOverlay != null) answerOverlay.removeView(hv);
+                        }).start();
+                mainHandler.postDelayed(this, 600);
+            }
+        };
+        mainHandler.post(answerHeartRainTask);
+    }
+
+    private void stopAnswerHeartRain() {
+        if (answerHeartRainTask != null) {
+            mainHandler.removeCallbacks(answerHeartRainTask);
+            answerHeartRainTask = null;
+        }
+    }
+
+    /** 应答：我愿意——钻戒时刻 + 终极爆发 + 金色雨 + 纪念日 + 纪念卡片（女生心动向#21） */
     private void onAnswerYes() {
         dismissAnswerOverlay();
         romanticStage = 5;
@@ -1276,8 +1383,23 @@ public class MainActivity extends AppCompatActivity {
         float cx = w / 2f, cy = h / 2f - 80f;
         // 金色雨：切换银杏精灵雨（全屏金色飘叶）
         starView.setWeather(SkyView.WEATHER_GINKGO);
+        // ===== 女生心动向#21：钻戒时刻——戒指升空、玫瑰绽放，仪式感拉满后再庆祝 =====
+        postRomanticCue(() -> {
+            if (!isRomanticMode) return;
+            GlobalFirework.getInstance().bloom(cx, cy, new FireworkConfig.Builder()
+                    .shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("💍")).rocket(true)
+                    .colors(0xFFFFD700, Color.WHITE)
+                    .count(scaledCount(150)).range(1.2f).trail(1.3f).build());
+        }, 300);
+        postRomanticCue(() -> {
+            if (!isRomanticMode) return;
+            GlobalFirework.getInstance().bloom(cx, cy - h * 0.06f, new FireworkConfig.Builder()
+                    .shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹"))
+                    .colors(0xFFFF2D55, 0xFFFF69B4)
+                    .count(scaledCount(150)).range(1.1f).trail(1.2f).build());
+        }, 1800);
         GlobalFirework.getInstance().playHeartbeatVibration();
-        // 16 连发庆祝
+        // 16 连发庆祝（钻戒时刻之后）
         for (int i = 0; i < 16; i++) {
             final int fi = i;
             postRomanticCue(() -> {
@@ -1296,8 +1418,17 @@ public class MainActivity extends AppCompatActivity {
                         w * (0.1f + random.nextFloat() * 0.8f),
                         h * (0.12f + random.nextFloat() * 0.45f), cfg);
                 if (fi % 4 == 0) GlobalFirework.getInstance().playHeartbeatVibration();
-            }, fi * 280);
+            }, 2600 + fi * 280);
         }
+        // 【女生心动向#21】庆祝尾声：深情文字烟花定格这一刻
+        postRomanticCue(() -> {
+            if (!isRomanticMode) return;
+            GlobalFirework.getInstance().bloom(cx, cy - h * 0.08f, new FireworkConfig.Builder()
+                    .shape(FireworkConfig.Shape.TEXT).text("余生，请多指教")
+                    .colors(0xFFFFD700, 0xFFFF69B4)
+                    .count(scaledCount(180)).range(1.1f).trail(1.3f)
+                    .textSize(fitFireworkTextSize("余生，请多指教", 90f)).rocket(true).build());
+        }, 2600 + 16 * 280 + 200);
         // 记入纪念日（#14）+ 生成纪念卡片（#13）
         saveAnniversary("表白成功纪念日");
         postRomanticCue(() -> {
@@ -1312,11 +1443,11 @@ public class MainActivity extends AppCompatActivity {
             }
             postRomanticCue(() -> {
                 if (isRomanticMode) stopRomanticMode();
-            }, 4500);
-        }, 16 * 280 + 500);
+            }, 8000); // 【女生心动向#21】庆祝绽放更久，给她时间拍照与感动
+        }, 2600 + 16 * 280 + 500);
     }
 
-    /** 应答：再想想——温柔收场 */
+    /** 应答：再想想——温柔收场（女生心动向#21：添一枚柔粉爱心陪她慢慢想） */
     private void onAnswerThink() {
         dismissAnswerOverlay();
         int w = rootLayout.getWidth();
@@ -1324,17 +1455,24 @@ public class MainActivity extends AppCompatActivity {
         GlobalFirework.getInstance().bloom(w / 2f, h / 2f - 80f, new FireworkConfig.Builder()
                 .shape(FireworkConfig.Shape.TEXT).text("没关系，我等你")
                 .colors(0xFF9FB8D8, Color.WHITE)
-                .count(scaledCount(160)).range(1.0f).textSize(90f).build());
+                .count(scaledCount(160)).range(1.0f).textSize(fitFireworkTextSize("没关系，我等你", 90f)).build());
+        GlobalFirework.getInstance().bloomSilently(w / 2f, h * 0.28f, new FireworkConfig.Builder()
+                .shape(FireworkConfig.Shape.HEART)
+                .colors(0xFFFFB6C1, 0xFFD8B6FF, Color.WHITE)
+                .count(scaledCount(110)).range(0.8f).trail(1.2f).build());
         postRomanticCue(() -> {
             if (isRomanticMode) stopRomanticMode();
             if (pendingRecordFull && isRecording) stopRecordingService();
-        }, 3200);
+        }, 4500);
     }
 
     private void dismissAnswerOverlay() {
+        stopAnswerHeartRain(); // 【#21】同步停掉应答爱心雨
+        if (yesPulseAnimator != null) {
+            yesPulseAnimator.cancel();
+            yesPulseAnimator = null;
+        }
         if (answerOverlay != null) {
-            // 停掉按钮脉动动画
-            View yesBtn = answerOverlay.findViewWithTag(null);
             android.widget.FrameLayout ov = answerOverlay;
             answerOverlay = null;
             ov.animate().alpha(0f).setDuration(500).withEndAction(() -> rootLayout.removeView(ov)).start();
@@ -1366,6 +1504,18 @@ public class MainActivity extends AppCompatActivity {
     private static int hueColorApp(int hue) {
         float[] hsv = {hue, 0.7f, 1f};
         return Color.HSVToColor(hsv);
+    }
+
+    /** 【溢出修复#22】文字烟花字号自适应：按屏幕宽度等比缩小，长台词不溢出屏幕；
+     *  同时减小采样位图面积，长文本的粒子生成开销同步下降（性能兼得） */
+    private float fitFireworkTextSize(String text, float maxSize) {
+        if (text == null || text.isEmpty() || rootLayout.getWidth() == 0) return maxSize;
+        android.graphics.Paint tp = new android.graphics.Paint();
+        tp.setTextSize(maxSize);
+        float textWidth = tp.measureText(text);
+        float maxAllowed = rootLayout.getWidth() * 0.82f;
+        if (textWidth <= maxAllowed) return maxSize;
+        return Math.max(36f, maxSize * maxAllowed / textWidth);
     }
 
     /** 朔望月月龄（App 端自算，与库同公式） */

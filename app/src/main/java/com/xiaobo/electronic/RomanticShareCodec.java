@@ -97,11 +97,14 @@ public class RomanticShareCodec {
         return text != null && (text.trim().startsWith(PREFIX_V2) || text.trim().startsWith(PREFIX));
     }
 
-    /** 多行文本按 v2 编码（超过 4 行截断） */
+    /** 多行文本按 v2 编码（超过 10 行截断） */
     public static String encodeLines(String multiline, int seconds, float volume) {
         List<String> lines = splitLines(multiline);
         return encode(lines, seconds, volume);
     }
+
+    /** 台词行数上限：演出节奏按每句 3~5 秒推进，10 句可撑起约一分钟的告白段 */
+    public static final int MAX_LINES = 10;
 
     public static List<String> splitLines(String multiline) {
         List<String> out = new ArrayList<>();
@@ -109,7 +112,7 @@ public class RomanticShareCodec {
             for (String s : multiline.split("\n")) {
                 String t = s.trim();
                 if (!t.isEmpty()) out.add(t);
-                if (out.size() >= 4) break;
+                if (out.size() >= MAX_LINES) break;
             }
         }
         if (out.isEmpty()) out.add("遇见你真好");
