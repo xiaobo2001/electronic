@@ -21,6 +21,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import com.tencent.mmkv.MMKV;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Surface;
@@ -209,7 +210,14 @@ public class ScreenRecorderService extends Service {
         File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
                 "RomanticFirework");
         if (!dir.exists()) dir.mkdirs();
-        String name = "romantic_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".mp4";
+        String her = "";
+        try {
+            // 【#23】录屏文件名带她的名字+日期：录完不用改名就能直接发给她
+            String n = MMKV.defaultMMKV().decodeString("romantic_her_name", "");
+            if (n != null && !n.trim().isEmpty()) her = "_" + n.trim();
+        } catch (Throwable ignored) {
+        }
+        String name = "romantic" + her + "_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".mp4";
         outputFile = new File(dir, name);
         mediaMuxer = new MediaMuxer(outputFile.getAbsolutePath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
     }

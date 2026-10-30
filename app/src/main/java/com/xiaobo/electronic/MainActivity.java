@@ -4,6 +4,7 @@ import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -138,6 +139,13 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_BGM_URI = "bgm_uri";
     private static final String KEY_BGM_VOLUME = "bgm_volume";
     private float bgmVolume = 0.7f;
+    // 【#23】她的名字/你的名字：贯穿全场与卡片落款
+    private static final String KEY_HER_NAME = "romantic_her_name";
+    private static final String KEY_MY_NAME = "romantic_my_name";
+    private String herName = "";
+    private String myName = "";
+    // 【#23】戒指落下定格视图（stopRomanticMode 时强制移除，防残留）
+    private TextView ringDropView;
     private String bgmUri;
     private ActivityResultLauncher<Intent> pickBgmLauncher;
     // ===== 录整场（#12旧） =====
@@ -345,6 +353,15 @@ public class MainActivity extends AppCompatActivity {
                         float moveXX = Math.abs(event.getX() - downX);
                         float moveYY = Math.abs(event.getY() - downY);
                         if (moveXX <= TOUCH_SLOP && moveYY <= TOUCH_SLOP) {
+                            if (isRomanticMode) {
+                                // 【#23】演出中她点击屏幕：放一枚小爱心，可参与不扰流程
+                                GlobalFirework.getInstance().bloomSilently(event.getX(), event.getY(),
+                                        new FireworkConfig.Builder()
+                                                .shape(FireworkConfig.Shape.HEART)
+                                                .colors(0xFFFFB6C1, Color.WHITE)
+                                                .count(scaledCount(45)).range(0.45f).trail(1.0f).build());
+                                return true;
+                            }
                             if (!fireworkReady) {
                                 long now = System.currentTimeMillis();
                                 if (now - lastNotReadyToast > 1500) {
@@ -823,6 +840,15 @@ public class MainActivity extends AppCompatActivity {
 
         String preset = MMKV.defaultMMKV().decodeString("last_romantic_lines", "小美 遇见你真好\n往后余生，请多指教");
         msgInput.setText(preset);
+        // 【#23】名字输入：她的名字贯穿全场，你的名字用于卡片落款
+        final com.google.android.material.textfield.TextInputEditText herNameInput =
+                view.findViewById(R.id.et_her_name);
+        final com.google.android.material.textfield.TextInputEditText myNameInput =
+                view.findViewById(R.id.et_my_name);
+        herName = MMKV.defaultMMKV().decodeString(KEY_HER_NAME, "");
+        myName = MMKV.defaultMMKV().decodeString(KEY_MY_NAME, "");
+        herNameInput.setText(herName);
+        myNameInput.setText(myName);
         timeInput.setText(String.valueOf(countdownSeconds));
         volumeSlider.setValue(Math.max(0f, Math.min(100f, bgmVolume * 100f)));
         volumeLabel.setText("背景音乐音量 " + (int) volumeSlider.getValue() + "%");
@@ -855,6 +881,10 @@ public class MainActivity extends AppCompatActivity {
             countdownSeconds = seconds;
             bgmVolume = Math.max(0f, volumeSlider.getValue() / 100f);
             MMKV.defaultMMKV().encode(KEY_BGM_VOLUME, bgmVolume);
+            herName = herNameInput.getText().toString().trim();
+            myName = myNameInput.getText().toString().trim();
+            MMKV.defaultMMKV().encode(KEY_HER_NAME, herName);
+            MMKV.defaultMMKV().encode(KEY_MY_NAME, myName);
             pendingRecordFull = recordFull.isChecked();
             dialog.dismiss();
             MMKV.defaultMMKV().encode("last_romantic_lines", message);
@@ -904,7 +934,7 @@ public class MainActivity extends AppCompatActivity {
                         String code = importInput.getText().toString().trim();
                         RomanticShareCodec.RomanticInfo info = RomanticShareCodec.decode(code);
                         if (info == null) {
-                            Toast.makeText(this, "分享码格式无效", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(this, "分享码无效：" + RomanticShareCodec.lastDecodeError, Toast.LENGTH_LONG).show();
                             return;
                         }
                         msgInput.setText(info.message);
@@ -976,9 +1006,20 @@ public class MainActivity extends AppCompatActivity {
         // ===== 【#18】TTS 初始化（懒，失败静默） =====
         ensureTts();
 
-        // 开场仪式（#4）：引言字 → 四方小心理聚心 → 倒计时
+        // ===== 【#23】开场留白：暗场 2 秒只剩星空与心跳，屏息之后再起引言 =====
+        GlobalFirework.getInstance().playHeartbeatVibration();
+        postRomanticCue(() -> {
+            if (!isRomanticMode) return;
+            GlobalFirework.getInstance().playHeartbeatVibration();
+        }, 1000);
+
+        // 开场仪式（#4）：引言字 → 四方小心理聚心 → 倒计时；【#23】名字贯穿：开场即只属于她
+        String openLine = herName.isEmpty() ? "这一刻，只为你说"
+                : herName + "，这一刻，只为你";
+        postRomanticCue(() -> {
+        if (!isRomanticMode) return;
         particleTextView.setTextColorHue(45, 60);
-        particleTextView.showText("这一刻，只为你说", () -> {
+        particleTextView.showText(openLine, () -> {
             if (!isRomanticMode) return;
             postRomanticCue(() -> {
                 if (!isRomanticMode) return;
@@ -1011,6 +1052,7 @@ public class MainActivity extends AppCompatActivity {
                 });
             }, 1600);
         });
+        }, 2000); // 【#23】留白 2 秒后起开场仪式
     }
 
     /** 鼓点高潮（#6）：每第 4 拍在中心叠一枚大爱心，踩在音乐重音上 */
@@ -1065,29 +1107,30 @@ public class MainActivity extends AppCompatActivity {
                     // 最后一句不爆开，保留在幕尾由应答前收束
                     startActOne();
                 } else {
-                    bloomLineAccent(lineIdx); // 【演出拉长#19】句尾配特效烟花，文字段不空场
+                    bloomLineAccent(lineIdx, line); // 【演出拉长#19】句尾配特效烟花，文字段不空场
                     particleTextView.explode(() -> {
                         if (!isRomanticMode) return;
                         postRomanticCue(() -> playConfessionLines(lineIdx + 1), 350);
                     });
                 }
-            }, lineDwellMs(line));
+            }, lineDwellMs(line, lineIdx, romanticLines.size()));
         });
     }
 
-    /** 台词停留时长（演出拉长#19）：基础 1.9s + 每字 260ms，下限 2.8s、上限 5.4s */
-    private long lineDwellMs(String line) {
+    /** 台词停留时长（#19 + 情绪曲线#23）：按字数动态 + 前段慢而柔、越往后越紧凑 */
+    private long lineDwellMs(String line, int idx, int total) {
         int len = line == null ? 0 : line.trim().length();
-        return Math.max(2800, Math.min(5400, 1900 + len * 260L));
+        long base = Math.max(2800, Math.min(5400, 1900 + len * 260L));
+        float mood = 1.15f - 0.25f * (total <= 1 ? 0f : (float) idx / (total - 1)); // 1.15 → 0.9 渐进
+        return Math.round(base * mood);
     }
 
     /** 台词入场特效池（随机特效#20）：每句随机抽取，像 PPT 翻页动画一样不重样 */
     private static final ParticleTextView.EntranceStyle[] LINE_ENTRANCES =
             ParticleTextView.EntranceStyle.values();
 
-    /** 句尾特效（演出拉长#19 + 女生心动向#21）：形状随句序轮换——爱心→玫瑰🌹→星星→戒指💍→圆形，
-     *  花与钻戒是女生最吃的两个意象，逐句都有惊喜；每三句补一颗流星 */
-    private void bloomLineAccent(int lineIdx) {
+    /** 句尾特效（#19/#21/#23）：关键词优先联动，未命中再按句序轮换；每三句补流星 */
+    private void bloomLineAccent(int lineIdx, String line) {
         int w = rootLayout.getWidth();
         int h = rootLayout.getHeight();
         float px = w * (0.2f + random.nextFloat() * 0.6f);
@@ -1095,15 +1138,52 @@ public class MainActivity extends AppCompatActivity {
         FireworkConfig.Builder b = new FireworkConfig.Builder()
                 .colors(hueColorApp((320 + lineIdx * 14) % 360), 0xFFFFD700, Color.WHITE)
                 .count(scaledCount(85)).range(0.8f).trail(1.2f);
-        switch (lineIdx % 5) {
-            case 0: b.shape(FireworkConfig.Shape.HEART); break;
-            case 1: b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹")); break;
-            case 2: b.shape(FireworkConfig.Shape.STAR); break;
-            case 3: b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("💍")); break;
-            default: b.shape(FireworkConfig.Shape.CIRCLE); break;
+        // 【#23】台词关键词联动：她念到什么，天上就开什么（优先级最高）
+        if (!keywordAccent(line, b)) {
+            switch (lineIdx % 5) {
+                case 0: b.shape(FireworkConfig.Shape.HEART); break;
+                case 1: b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹")); break;
+                case 2: b.shape(FireworkConfig.Shape.STAR); break;
+                case 3: b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("💍")); break;
+                default: b.shape(FireworkConfig.Shape.CIRCLE); break;
+            }
         }
         GlobalFirework.getInstance().bloomSilently(px, py, b.build());
         if (lineIdx % 3 == 2) starView.spawnMeteor(); // 台词段穿插流星
+    }
+
+    /** 【#23】台词关键词联动：嫁给我→戒指、玫瑰/花→玫瑰、钻石→钻石、星→五角星、月→满月金圆、爱/心→爱心 */
+    private boolean keywordAccent(String line, FireworkConfig.Builder b) {
+        if (line == null || line.isEmpty()) return false;
+        if (line.contains("嫁给我") || line.contains("求婚") || line.contains("戒指")
+                || line.contains("钻戒") || line.contains("娶你") || line.contains("嫁")) {
+            b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("💍"))
+                    .colors(0xFFFFD700, Color.WHITE);
+            return true;
+        }
+        if (line.contains("玫瑰") || line.contains("花")) {
+            b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹"))
+                    .colors(0xFFFF2D55, 0xFFFF69B4);
+            return true;
+        }
+        if (line.contains("钻石")) {
+            b.shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("💎"))
+                    .colors(0xFF7FD4FF, 0xFFB6E5FF);
+            return true;
+        }
+        if (line.contains("星")) {
+            b.shape(FireworkConfig.Shape.STAR).colors(0xFFFFD700, Color.WHITE);
+            return true;
+        }
+        if (line.contains("月")) {
+            b.shape(FireworkConfig.Shape.CIRCLE).colors(0xFFF5EFCE, 0xFFFFFFFF); // 月亮意象：温润金白圆盘
+            return true;
+        }
+        if (line.contains("爱") || line.contains("心")) {
+            b.shape(FireworkConfig.Shape.HEART).colors(0xFFFF69B4, Color.RED);
+            return true;
+        }
+        return false;
     }
 
     /** 幕一：三波爱心绽放 + 花瓣雨 + 五角星尾声，持续约 16 秒后进幕二（#19 拉长） */
@@ -1271,7 +1351,10 @@ public class MainActivity extends AppCompatActivity {
         answerOverlay = new android.widget.FrameLayout(this);
         answerOverlay.setBackgroundColor(0x66000000);
         TextView question = new TextView(this);
-        question.setText(romanticLines.get(romanticLines.size() - 1));
+        // 【#23】名字贯穿：问题前加她的名字，这一刻只属于她（台词已含名字则不重复）
+        String qLine = romanticLines.get(romanticLines.size() - 1);
+        if (!herName.isEmpty() && !qLine.contains(herName)) qLine = herName + "，" + qLine;
+        question.setText(qLine);
         question.setTextSize(26);
         question.setTextColor(Color.WHITE);
         question.setGravity(android.view.Gravity.CENTER);
@@ -1324,9 +1407,64 @@ public class MainActivity extends AppCompatActivity {
         pulse.start();
         yesBtn.setTag(pulse);
         yesPulseAnimator = pulse; // 【#21】存字段，收场时可靠停掉
-        yesBtn.setOnClickListener(v -> onAnswerYes());
+        // ===== 【#23】长按“我愿意”2 秒才生效：郑重的动作防手滑，松早了轻声挽留 =====
+        yesBtn.setOnTouchListener(new View.OnTouchListener() {
+            private ValueAnimator hold;
+            private boolean fired = false;
+            @Override
+            public boolean onTouch(View v, android.view.MotionEvent me) {
+                switch (me.getAction()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        fired = false;
+                        if (yesPulseAnimator != null) { yesPulseAnimator.cancel(); yesPulseAnimator = null; }
+                        yesBtn.setAlpha(1f);
+                        hold = ValueAnimator.ofFloat(0f, 1f);
+                        hold.setDuration(2000);
+                        hold.addUpdateListener(a -> {
+                            float f = (float) a.getAnimatedValue();
+                            yesBtn.setScaleX(1f + f * 0.18f);
+                            yesBtn.setScaleY(1f + f * 0.18f);
+                        });
+                        hold.addListener(new AnimatorListenerAdapter() {
+                            private boolean cancelledByUser = false;
+                            @Override public void onAnimationCancel(Animator a) { cancelledByUser = true; }
+                            @Override public void onAnimationEnd(Animator a) {
+                                if (!cancelledByUser && !fired) {
+                                    fired = true;
+                                    onAnswerYes(); // 按满 2 秒：这就是她的答案
+                                }
+                            }
+                        });
+                        hold.start();
+                        return true;
+                    case android.view.MotionEvent.ACTION_UP:
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        if (hold != null) {
+                            if (hold.isRunning() && !fired) {
+                                fired = true;
+                                hold.cancel();
+                                yesBtn.setScaleX(1f);
+                                yesBtn.setScaleY(1f);
+                                Toast.makeText(MainActivity.this, "再确认一下？我等你 💗", Toast.LENGTH_SHORT).show();
+                            }
+                            hold = null;
+                        }
+                        return true;
+                }
+                return false;
+            }
+        });
         thinkBtn.setOnClickListener(v -> onAnswerThink());
         startAnswerHeartRain(); // 【#21】等待她回答时，满屏缓缓飘落小爱心
+        // ===== 【#23】等待台词轮播：10 秒一句轻声等她，比干等温柔 =====
+        postRomanticCue(() -> {
+            if (isRomanticMode && answerOverlay != null)
+                Toast.makeText(this, "不着急，我等你", Toast.LENGTH_SHORT).show();
+        }, 10000);
+        postRomanticCue(() -> {
+            if (isRomanticMode && answerOverlay != null)
+                Toast.makeText(this, "你点头就好", Toast.LENGTH_SHORT).show();
+        }, 20000);
         // 【#6】应答无响应保护：30 秒未选择则温柔收场
         postRomanticCue(() -> {
             if (isRomanticMode && answerOverlay != null) {
@@ -1383,7 +1521,7 @@ public class MainActivity extends AppCompatActivity {
         float cx = w / 2f, cy = h / 2f - 80f;
         // 金色雨：切换银杏精灵雨（全屏金色飘叶）
         starView.setWeather(SkyView.WEATHER_GINKGO);
-        // ===== 女生心动向#21：钻戒时刻——戒指升空、玫瑰绽放，仪式感拉满后再庆祝 =====
+        // ===== 女生心动向#21+#23：钻戒时刻——戒指炸开→从天而降定格→玫瑰绽放→庆祝 =====
         postRomanticCue(() -> {
             if (!isRomanticMode) return;
             GlobalFirework.getInstance().bloom(cx, cy, new FireworkConfig.Builder()
@@ -1391,15 +1529,19 @@ public class MainActivity extends AppCompatActivity {
                     .colors(0xFFFFD700, Color.WHITE)
                     .count(scaledCount(150)).range(1.2f).trail(1.3f).build());
         }, 300);
+        // 【#23】戒指落下定格：炸开后一枚戒指从天而降，落到中心放大——“为她戴上”
+        postRomanticCue(() -> {
+            if (isRomanticMode) dropRingMoment();
+        }, 1200);
         postRomanticCue(() -> {
             if (!isRomanticMode) return;
             GlobalFirework.getInstance().bloom(cx, cy - h * 0.06f, new FireworkConfig.Builder()
                     .shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹"))
                     .colors(0xFFFF2D55, 0xFFFF69B4)
                     .count(scaledCount(150)).range(1.1f).trail(1.2f).build());
-        }, 1800);
+        }, 5200);
         GlobalFirework.getInstance().playHeartbeatVibration();
-        // 16 连发庆祝（钻戒时刻之后）
+        // 16 连发庆祝（戒指定格落幕后）
         for (int i = 0; i < 16; i++) {
             final int fi = i;
             postRomanticCue(() -> {
@@ -1418,23 +1560,24 @@ public class MainActivity extends AppCompatActivity {
                         w * (0.1f + random.nextFloat() * 0.8f),
                         h * (0.12f + random.nextFloat() * 0.45f), cfg);
                 if (fi % 4 == 0) GlobalFirework.getInstance().playHeartbeatVibration();
-            }, 2600 + fi * 280);
+            }, 5800 + fi * 280);
         }
-        // 【女生心动向#21】庆祝尾声：深情文字烟花定格这一刻
+        // 【女生心动向#21+#23】庆祝尾声：深情文字烟花定格这一刻（带她的名字）
         postRomanticCue(() -> {
             if (!isRomanticMode) return;
+            String vowLine = herName.isEmpty() ? "余生，请多指教" : herName + "，余生请多指教";
             GlobalFirework.getInstance().bloom(cx, cy - h * 0.08f, new FireworkConfig.Builder()
-                    .shape(FireworkConfig.Shape.TEXT).text("余生，请多指教")
+                    .shape(FireworkConfig.Shape.TEXT).text(vowLine)
                     .colors(0xFFFFD700, 0xFFFF69B4)
                     .count(scaledCount(180)).range(1.1f).trail(1.3f)
-                    .textSize(fitFireworkTextSize("余生，请多指教", 90f)).rocket(true).build());
-        }, 2600 + 16 * 280 + 200);
+                    .textSize(fitFireworkTextSize(vowLine, 90f)).rocket(true).build());
+        }, 5800 + 16 * 280 + 300);
         // 记入纪念日（#14）+ 生成纪念卡片（#13）
         saveAnniversary("表白成功纪念日");
         postRomanticCue(() -> {
             float age = moonAgeNow();
             String path = MementoCard.generate(this, romanticLines,
-                    starView.getCurrentZodiacName(), age);
+                    starView.getCurrentZodiacName(), age, herName, myName);
             if (path != null) {
                 Toast.makeText(this, "纪念卡片已保存：" + path, Toast.LENGTH_LONG).show();
             }
@@ -1444,7 +1587,41 @@ public class MainActivity extends AppCompatActivity {
             postRomanticCue(() -> {
                 if (isRomanticMode) stopRomanticMode();
             }, 8000); // 【女生心动向#21】庆祝绽放更久，给她时间拍照与感动
-        }, 2600 + 16 * 280 + 500);
+        }, 5800 + 16 * 280 + 500);
+    }
+
+    /** 【#23】戒指落下定格：答愿意后一枚💍从天而降，落到屏幕中心放大定格再淡出，
+     *  “为她戴上”的仪式感；stopRomanticMode 强制移除防残留 */
+    private void dropRingMoment() {
+        int w = rootLayout.getWidth();
+        int h = rootLayout.getHeight();
+        TextView ring = new TextView(this);
+        ring.setText("💍");
+        ring.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.min(w, h) * 0.15f);
+        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(-2, -2);
+        lp.gravity = android.view.Gravity.CENTER;
+        rootLayout.addView(ring, lp);
+        ringDropView = ring;
+        ring.setAlpha(0f);
+        ring.setScaleX(0.2f);
+        ring.setScaleY(0.2f);
+        ring.setTranslationY(-h * 0.3f);
+        ring.animate().alpha(1f).translationY(0f).scaleX(1.15f).scaleY(1.15f)
+                .setDuration(1500)
+                .withEndAction(() -> {
+                    if (ringDropView == null) return;
+                    ring.postDelayed(() -> {
+                        if (ringDropView == null) return;
+                        ringDropView.animate().alpha(0f).setDuration(600)
+                                .withEndAction(() -> {
+                                    if (ringDropView != null) {
+                                        rootLayout.removeView(ringDropView);
+                                        ringDropView = null;
+                                    }
+                                }).start();
+                    }, 1600);
+                })
+                .start();
     }
 
     /** 应答：再想想——温柔收场（女生心动向#21：添一枚柔粉爱心陪她慢慢想） */
@@ -1453,9 +1630,11 @@ public class MainActivity extends AppCompatActivity {
         int w = rootLayout.getWidth();
         int h = rootLayout.getHeight();
         GlobalFirework.getInstance().bloom(w / 2f, h / 2f - 80f, new FireworkConfig.Builder()
-                .shape(FireworkConfig.Shape.TEXT).text("没关系，我等你")
+                .shape(FireworkConfig.Shape.TEXT)
+                .text(herName.isEmpty() ? "没关系，我等你" : herName + "，没关系，我等你")
                 .colors(0xFF9FB8D8, Color.WHITE)
-                .count(scaledCount(160)).range(1.0f).textSize(fitFireworkTextSize("没关系，我等你", 90f)).build());
+                .count(scaledCount(160)).range(1.0f)
+                .textSize(fitFireworkTextSize(herName.isEmpty() ? "没关系，我等你" : herName + "，没关系，我等你", 90f)).build());
         GlobalFirework.getInstance().bloomSilently(w / 2f, h * 0.28f, new FireworkConfig.Builder()
                 .shape(FireworkConfig.Shape.HEART)
                 .colors(0xFFFFB6C1, 0xFFD8B6FF, Color.WHITE)
@@ -1619,6 +1798,10 @@ public class MainActivity extends AppCompatActivity {
         // ===== 优雅退场（#17）：不再瞬间清场 =====
         cancelCharging();
         dismissAnswerOverlay();
+        if (ringDropView != null) { // 【#23】戒指落下动画强制移除防残留
+            rootLayout.removeView(ringDropView);
+            ringDropView = null;
+        }
         clearRomanticCues(); // 【#7】清光全部排队演出
         if (recordFullGuard != null) {
             mainHandler.removeCallbacks(recordFullGuard);
@@ -2623,7 +2806,9 @@ public class MainActivity extends AppCompatActivity {
         String clipText = getClipboardText();
         RomanticShareCodec.RomanticInfo info = RomanticShareCodec.decode(clipText);
         if (info == null) {
-            Toast.makeText(this, "剪贴板没有找到有效分享码", Toast.LENGTH_SHORT).show();
+            String reason = RomanticShareCodec.lastDecodeError;
+            Toast.makeText(this, reason.isEmpty() ? "剪贴板没有找到有效分享码"
+                    : "导入失败：" + reason, Toast.LENGTH_LONG).show();
             return;
         }
         countdownSeconds = info.seconds;

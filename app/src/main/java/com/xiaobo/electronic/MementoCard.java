@@ -25,8 +25,10 @@ import java.util.Locale;
  */
 public class MementoCard {
 
-    /** 生成并保存纪念卡片，返回保存路径（失败返回 null） */
-    public static String generate(Context ctx, List<String> lines, String zodiacName, float moonAge) {
+    /** 生成并保存纪念卡片，返回保存路径（失败返回 null）。
+     *  【#23】herName/myName：专属落款（“给她”+落款人），有名字才有落款行 */
+    public static String generate(Context ctx, List<String> lines, String zodiacName, float moonAge,
+                                   String herName, String myName) {
         try {
             int w = 1080, h = 1350;
             Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
@@ -96,6 +98,22 @@ public class MementoCard {
             p.setTextSize(30f);
             p.setAlpha(140);
             c.drawText("—— 遇见你真好 ——", w / 2f, h * 0.90f, p);
+
+            // 【#23】专属落款：给她 + 你的名字（有名字才有落款行）
+            if (herName != null && !herName.isEmpty()) {
+                p.setColor(0xFFFFD700);
+                p.setAlpha(235);
+                p.setTextSize(46f);
+                p.setTypeface(Typeface.DEFAULT_BOLD);
+                c.drawText("给 " + herName, w / 2f, h * 0.945f, p);
+            }
+            if (myName != null && !myName.isEmpty()) {
+                p.setColor(0xFFFFFFFF);
+                p.setAlpha(150);
+                p.setTextSize(30f);
+                p.setTypeface(Typeface.DEFAULT);
+                c.drawText("—— " + myName + " ——", w / 2f, h * 0.975f, p);
+            }
 
             return save(ctx, bmp);
         } catch (Exception e) {
