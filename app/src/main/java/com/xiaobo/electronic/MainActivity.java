@@ -1350,6 +1350,7 @@ public class MainActivity extends AppCompatActivity {
         romanticStage = 4;
         answerOverlay = new android.widget.FrameLayout(this);
         answerOverlay.setBackgroundColor(0x66000000);
+        answerOverlay.setClickable(true); // 【#23】遮罩吃掉点击：防穿透到烟花层误触放爱心/蓄力
         TextView question = new TextView(this);
         // 【#23】名字贯穿：问题前加她的名字，这一刻只属于她（台词已含名字则不重复）
         String qLine = romanticLines.get(romanticLines.size() - 1);
@@ -1380,6 +1381,16 @@ public class MainActivity extends AppCompatActivity {
         thinkBtn.setBackgroundTintList(ColorStateList.valueOf(0x80000000));
         btnRow.addView(yesBtn);
         btnRow.addView(thinkBtn);
+        // 【#23】长按引导：她第一次看到不会知道要长按，明确告诉她怎么说出答案
+        TextView holdHint = new TextView(this);
+        holdHint.setText("（长按“我愿意” 2 秒，说出你的答案）");
+        holdHint.setTextSize(12);
+        holdHint.setTextColor(0xB3FFFFFF);
+        holdHint.setGravity(android.view.Gravity.CENTER);
+        android.widget.FrameLayout.LayoutParams hintLp = new android.widget.FrameLayout.LayoutParams(-1, -2);
+        hintLp.topMargin = rootLayout.getHeight() / 2 + 190;
+        answerOverlay.addView(holdHint, hintLp);
+        final TextView fHoldHint = holdHint;
         android.widget.FrameLayout.LayoutParams rowLp = new android.widget.FrameLayout.LayoutParams(-2, -2);
         rowLp.topMargin = rootLayout.getHeight() / 2;
         rowLp.gravity = android.view.Gravity.CENTER_HORIZONTAL;
@@ -1409,8 +1420,8 @@ public class MainActivity extends AppCompatActivity {
         yesPulseAnimator = pulse; // 【#21】存字段，收场时可靠停掉
         // ===== 【#23】长按“我愿意”2 秒才生效：郑重的动作防手滑，松早了轻声挽留 =====
         yesBtn.setOnTouchListener(new View.OnTouchListener() {
-            private ValueAnimator hold;
             private boolean fired = false;
+            private boolean hintSwitched = false;
             @Override
             public boolean onTouch(View v, android.view.MotionEvent me) {
                 switch (me.getAction()) {
@@ -1418,36 +1429,43 @@ public class MainActivity extends AppCompatActivity {
                         fired = false;
                         if (yesPulseAnimator != null) { yesPulseAnimator.cancel(); yesPulseAnimator = null; }
                         yesBtn.setAlpha(1f);
-                        hold = ValueAnimator.ofFloat(0f, 1f);
-                        hold.setDuration(2000);
-                        hold.addUpdateListener(a -> {
+                        if (!hintSwitched) {
+                            hintSwitched = true;
+                            fHoldHint.setText("按住我，别松手 💗"); // 【#23】松手后引导换文案，下一步她就懂了
+                        }
+                        yesHoldAnimator = ValueAnimator.ofFloat(0f, 1f);
+                        yesHoldAnimator.setDuration(2000);
+                        yesHoldAnimator.addUpdateListener(a -> {
                             float f = (float) a.getAnimatedValue();
                             yesBtn.setScaleX(1f + f * 0.18f);
                             yesBtn.setScaleY(1f + f * 0.18f);
                         });
-                        hold.addListener(new AnimatorListenerAdapter() {
+                        yesHoldAnimator.addListener(new AnimatorListenerAdapter() {
                             private boolean cancelledByUser = false;
                             @Override public void onAnimationCancel(Animator a) { cancelledByUser = true; }
                             @Override public void onAnimationEnd(Animator a) {
                                 if (!cancelledByUser && !fired) {
                                     fired = true;
-                                    onAnswerYes(); // 按满 2 秒：这就是她的答案
+                                    // 【移除保护】overlay 已被超时收场/结束演出移除时不再触发庆祝
+                                    if (isRomanticMode && answerOverlay != null) {
+                                        onAnswerYes(); // 按满 2 秒：这就是她的答案
+                                    }
                                 }
                             }
                         });
-                        hold.start();
+                        yesHoldAnimator.start();
                         return true;
                     case android.view.MotionEvent.ACTION_UP:
                     case android.view.MotionEvent.ACTION_CANCEL:
-                        if (hold != null) {
-                            if (hold.isRunning() && !fired) {
+                        if (yesHoldAnimator != null) {
+                            if (yesHoldAnimator.isRunning() && !fired) {
                                 fired = true;
-                                hold.cancel();
+                                yesHoldAnimator.cancel();
                                 yesBtn.setScaleX(1f);
                                 yesBtn.setScaleY(1f);
                                 Toast.makeText(MainActivity.this, "再确认一下？我等你 💗", Toast.LENGTH_SHORT).show();
                             }
-                            hold = null;
+                            yesHoldAnimator = null;
                         }
                         return true;
                 }
@@ -1477,6 +1495,7 @@ public class MainActivity extends AppCompatActivity {
     // ===== 应答爱心雨（女生心动向#21）：等她回答的时刻，爱心/花辫/星光缓缓飘落 =====
     private Runnable answerHeartRainTask;
     private ObjectAnimator yesPulseAnimator;
+    private ValueAnimator yesHoldAnimator; // 【#23】长按动画：收场时可靠停掉，防空转死引用
 
     private void startAnswerHeartRain() {
         stopAnswerHeartRain();
@@ -1646,10 +1665,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void dismissAnswerOverlay() {
-        stopAnswerHeartRain(); // 【#21】同步停掉应答爱心雨
+        stopAnswerHeartRain(); // 【#21】应答爱心雨同步停止
         if (yesPulseAnimator != null) {
             yesPulseAnimator.cancel();
             yesPulseAnimator = null;
+        }
+        if (yesHoldAnimator != null) { // 【#23】长按动画同步停掉，防空转死引用
+            yesHoldAnimator.cancel();
+            yesHoldAnimator = null;
         }
         if (answerOverlay != null) {
             android.widget.FrameLayout ov = answerOverlay;
