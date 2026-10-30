@@ -146,6 +146,11 @@ public class FireworkWallpaperService extends WallpaperService {
                 drawThread = null;
                 drawHandler = null;
             }
+            // 【移除清理#24】回收 emoji 位图缓存：壁纸预览/切换反复重建 Engine 时不攒垃圾
+            for (android.graphics.Bitmap b : wpEmojiCache.values()) {
+                if (b != null && !b.isRecycled()) b.recycle();
+            }
+            wpEmojiCache.clear();
             starView = null;
         }
 
@@ -189,8 +194,18 @@ public class FireworkWallpaperService extends WallpaperService {
             }
             if (fireworkView != null) {
                 int index = random.nextInt(fireworkPool.length);
-                FireworkConfig config = getEffectiveConfig(fireworkPool[index]);
+                FireworkConfig config = getEffectiveConfig(fireworkPool[index], surfaceWidth());
                 fireworkView.launch(event.getX(), event.getY(), config);
+            }
+        }
+
+        /** 当前 Surface 宽度（自适应字号用；Surface 未就绪时退回屏幕宽） */
+        private int surfaceWidth() {
+            try {
+                int w = getSurfaceHolder().getSurfaceFrame().width();
+                return w > 0 ? w : getResources().getDisplayMetrics().widthPixels;
+            } catch (Exception e) {
+                return getResources().getDisplayMetrics().widthPixels;
             }
         }
 
@@ -307,11 +322,11 @@ public class FireworkWallpaperService extends WallpaperService {
             float x = margin + random.nextFloat() * (width - margin * 2);
             float y = margin + random.nextFloat() * (height - margin * 2);
             int index = random.nextInt(fireworkPool.length);
-            FireworkConfig config = getEffectiveConfig(fireworkPool[index]);
+            FireworkConfig config = getEffectiveConfig(fireworkPool[index], width);
             fireworkView.launch(x, y, config);
         }
 
-        private FireworkConfig getEffectiveConfig(FireworkConfig origin) {
+        private FireworkConfig getEffectiveConfig(FireworkConfig origin, int widthPx) {
             if (origin.shape == FireworkConfig.Shape.TEXT) {
                 String customText = MMKV.defaultMMKV()
                         .decodeString(KEY_CUSTOM_FIREWORK_TEXT, DEFAULT_FIREWORK_TEXT);
@@ -320,9 +335,20 @@ public class FireworkWallpaperService extends WallpaperService {
                         .text(customText)
                         .colors(Color.RED, Color.YELLOW)
                         .range(origin.explosionRange)
+                        .textSize(fitWallTextSize(customText, 100f, widthPx)) // 【溢出修复#24】长文字不溢出壁纸
                         .build();
             }
             return origin;
+        }
+
+        /** 壁纸版字号自适应：按 Surface 宽 82% 等比缩小（Java 11 内部类禁静态成员，改实例方法） */
+        private float fitWallTextSize(String text, float maxSize, int widthPx) {
+            if (text == null || text.isEmpty() || widthPx <= 0) return maxSize;
+            Paint tp = new Paint();
+            tp.setTextSize(maxSize);
+            float tw = tp.measureText(text);
+            float allowed = widthPx * 0.82f;
+            return tw <= allowed ? maxSize : Math.max(36f, maxSize * allowed / tw);
         }
     }
 }

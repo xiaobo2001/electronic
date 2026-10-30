@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaScannerConnection;
 import android.os.Environment;
+import com.tencent.mmkv.MMKV;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -54,7 +55,14 @@ public class GifExporter {
                 rgbFrames[i] = px;
             }
 
-            String outName = "romantic_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".gif";
+            String her = "";
+            try {
+                // 【#24】GIF 文件名同步带她的名字，与录屏 MP4 命名一致
+                String n = MMKV.defaultMMKV().decodeString("romantic_her_name", "");
+                if (n != null && !n.trim().isEmpty()) her = "_" + n.trim();
+            } catch (Throwable ignored) {
+            }
+            String outName = "romantic" + her + "_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".gif";
             File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "RomanticFirework");
             if (!dir.exists()) dir.mkdirs();
             File out = new File(dir, outName);

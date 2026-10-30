@@ -292,6 +292,9 @@ public class MainActivity extends AppCompatActivity {
             restoreBackground();
         }
         handleRomanticShortcut(getIntent()); // 【#19】小组件一键浪漫
+        // 【修复#24】名字冷启动恢复：小组件一键浪漫不经设置弹窗，不恢复则名字功能失效
+        herName = MMKV.defaultMMKV().decodeString(KEY_HER_NAME, "");
+        myName = MMKV.defaultMMKV().decodeString(KEY_MY_NAME, "");
         isPureMode = MMKV.defaultMMKV().decodeBool(KEY_PURE_MODE, false);
         if (isPureMode) {
             llBottomBar.setVisibility(View.GONE);
@@ -446,8 +449,13 @@ public class MainActivity extends AppCompatActivity {
             FireworkConfig[] themed = ThemeManager.fireworkPool(currentTheme, scaledCount(150), customFireworkText);
             String[] emojis = ThemeManager.poolEmojis(currentTheme);
             if (themed != null) {
+                int screenW = getResources().getDisplayMetrics().widthPixels;
                 for (int i = 0; i < themed.length && i < emojis.length; i++) {
                     ThemeManager.withEmoji(this, themed[i], emojis[i]);
+                    // 【溢出修复#24】主题文字烟花（福/生日快乐/Merry Xmas）按屏宽自适应，窄屏不溢出
+                    if (themed[i].shape == FireworkConfig.Shape.TEXT) {
+                        themed[i].textSize = fitTextSizePx(themed[i].text, themed[i].textSize, screenW);
+                    }
                 }
                 allPoolConfigs = themed;
                 allPoolNames = ThemeManager.THEME_POOL_NAMES[currentTheme];
@@ -486,14 +494,15 @@ public class MainActivity extends AppCompatActivity {
                         .trail(1.6f)
                         .rocket(true)
                         .build(),
-                // 自定义文字（沿用用户设置）
+                // 自定义文字（沿用用户设置；【溢出修复#24】字号按屏宽自适应，长句不溢出）
                 new FireworkConfig.Builder()
                         .shape(FireworkConfig.Shape.TEXT)
                         .text(customFireworkText)
                         .colors(Color.RED, Color.YELLOW)
                         .range(1.2f)
                         .count(scaledCount(160))
-                        .textSize(100f)
+                        .textSize(fitTextSizePx(customFireworkText, 100f,
+                                getResources().getDisplayMetrics().widthPixels))
                         .build(),
                 // 玫瑰 🌹
                 new FireworkConfig.Builder()
@@ -1594,12 +1603,20 @@ public class MainActivity extends AppCompatActivity {
         // 记入纪念日（#14）+ 生成纪念卡片（#13）
         saveAnniversary("表白成功纪念日");
         postRomanticCue(() -> {
-            float age = moonAgeNow();
-            String path = MementoCard.generate(this, romanticLines,
-                    starView.getCurrentZodiacName(), age, herName, myName);
-            if (path != null) {
-                Toast.makeText(this, "纪念卡片已保存：" + path, Toast.LENGTH_LONG).show();
-            }
+            // 【性能#24】纪念卡片生成后台化：1080×1350 位图 + PNG 压缩约 0.5~2s，
+            // 原在主线程会卡庆祝高峰帧；后台生成，完成后回主线程 Toast（快照防演出状态变化）
+            final float age = moonAgeNow();
+            final String zodiac = starView.getCurrentZodiacName();
+            final java.util.List<String> linesSnapshot = new java.util.ArrayList<>(romanticLines);
+            final String hn = herName, mn = myName;
+            new Thread(() -> {
+                String path = MementoCard.generate(this, linesSnapshot, zodiac, age, hn, mn);
+                mainHandler.post(() -> {
+                    if (path != null && !isFinishing()) {
+                        Toast.makeText(this, "纪念卡片已保存：" + path, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }, "memento-card").start();
             if (pendingRecordFull && isRecording) {
                 stopRecordingService(); // 录整场：庆祝完成后自动收尾
             }
@@ -1712,10 +1729,16 @@ public class MainActivity extends AppCompatActivity {
      *  同时减小采样位图面积，长文本的粒子生成开销同步下降（性能兼得） */
     private float fitFireworkTextSize(String text, float maxSize) {
         if (text == null || text.isEmpty() || rootLayout.getWidth() == 0) return maxSize;
+        return fitTextSizePx(text, maxSize, rootLayout.getWidth());
+    }
+
+    /** 静态版：构池时（rootLayout 尚无宽度）用系统屏宽自适应，运行时用 view 宽 */
+    private static float fitTextSizePx(String text, float maxSize, int widthPx) {
+        if (text == null || text.isEmpty() || widthPx <= 0) return maxSize;
         android.graphics.Paint tp = new android.graphics.Paint();
         tp.setTextSize(maxSize);
         float textWidth = tp.measureText(text);
-        float maxAllowed = rootLayout.getWidth() * 0.82f;
+        float maxAllowed = widthPx * 0.82f;
         if (textWidth <= maxAllowed) return maxSize;
         return Math.max(36f, maxSize * maxAllowed / textWidth);
     }
@@ -2668,7 +2691,7 @@ public class MainActivity extends AppCompatActivity {
         dot(menuView, R.id.tv_pure_mode, isPureMode);
         TextView themeTv = menuView.findViewById(R.id.tv_theme);
         if (themeTv != null) {
-            themeTv.setText("节日主题（当前：" + ThemeManager.name(currentTheme) + "）");
+            themeTv.setText("🎊 节日主题（当前：" + ThemeManager.name(currentTheme) + "）"); // 【UI#24】保留 emoji 前缀与菜单统一
         }
     }
 

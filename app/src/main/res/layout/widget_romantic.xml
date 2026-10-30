@@ -3,8 +3,8 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
-    android:background="#33000000">
+    android:background="@drawable/widget_btn_bg"
+    android:gravity="center">
 
     <Button
         android:id="@+id/widget_btn"
@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:background="@null"
         android:text="💖 一键浪漫"
-        android:textColor="#FFFF69B4"
+        android:textColor="#FFFFD9E8"
         android:textSize="14sp"
         android:textStyle="bold" />
 </LinearLayout>

@@ -26,9 +26,12 @@
             android:id="@+id/tv_weather"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="天气粒子（雪/樱花/银杏）"
+            android:text="🌦 天气粒子（雪/樱花/银杏）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -36,9 +39,12 @@
             android:id="@+id/tv_lantern"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="孔明灯模式（点击放灯）"
+            android:text="🏮 孔明灯模式（点击放灯）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -46,9 +52,12 @@
             android:id="@+id/tv_moon"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="月亮与星座"
+            android:text="🌙 月亮与星座"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -56,9 +65,12 @@
             android:id="@+id/tv_rhythm"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="音乐律动（随节奏绽放）"
+            android:text="🎵 音乐律动（随节奏绽放）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -66,9 +78,12 @@
             android:id="@+id/tv_theme"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="节日主题（春节/生日/圣诞）"
+            android:text="🎊 节日主题（春节/生日/圣诞）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -86,9 +101,12 @@
             android:id="@+id/tv_style_switch"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="烟花样式开关（逐个样式独立开关）"
+            android:text="🎆 烟花样式开关（逐个样式独立开关）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -96,9 +114,12 @@
             android:id="@+id/tv_custom_text"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="自定义文字"
+            android:text="✍ 自定义文字"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -106,9 +127,12 @@
             android:id="@+id/tv_rocket_mode"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="指尖发射（点击→火箭升空炸开）"
+            android:text="🚀 指尖发射（点击→火箭升空炸开）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -116,9 +140,12 @@
             android:id="@+id/tv_auto_pattern"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="随机剧本（波浪/聚拢/节拍）"
+            android:text="🎞 随机剧本（波浪/聚拢/节拍）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -126,9 +153,12 @@
             android:id="@+id/tv_afterglow"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="烟花余辉（薄纱残影）"
+            android:text="✨ 烟花余辉（薄纱残影）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -136,9 +166,12 @@
             android:id="@+id/tv_pure_mode"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="纯净模式（隐藏按钮栏）"
+            android:text="🌌 纯净模式（隐藏按钮栏）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -156,9 +189,12 @@
             android:id="@+id/tv_import_share_code"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="导入浪漫分享码"
+            android:text="📥 导入浪漫分享码"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -166,9 +202,12 @@
             android:id="@+id/tv_export_video"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="导出浪漫视频"
+            android:text="🎬 导出浪漫视频"
             android:textColor="#FFD700"
             android:textSize="15sp" />
 
@@ -176,9 +215,12 @@
             android:id="@+id/tv_export_gif"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="视频转 GIF 动图"
+            android:text="🎞 视频转 GIF 动图"
             android:textColor="#FFD700"
             android:textSize="15sp" />
 
@@ -186,9 +228,12 @@
             android:id="@+id/tv_anniversary"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="纪念日"
+            android:text="📅 纪念日（点击重演）"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -206,9 +251,12 @@
             android:id="@+id/tv_change_bg"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="换背景颜色"
+            android:text="🎨 换背景颜色"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -216,9 +264,12 @@
             android:id="@+id/tv_pick_image"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="相册选图"
+            android:text="📷 相册选图"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -226,9 +277,12 @@
             android:id="@+id/tv_set_wallpaper"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="设置为桌面壁纸"
+            android:text="📱 设置为桌面壁纸"
             android:textColor="#FF1493"
             android:textSize="15sp" />
 
@@ -236,9 +290,12 @@
             android:id="@+id/tv_guide"
             android:layout_width="match_parent"
             android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="玩法说明"
+            android:text="❓ 玩法说明"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
