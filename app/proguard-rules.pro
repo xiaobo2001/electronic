@@ -23,6 +23,10 @@
 -keep class com.tencent.mmkv.** { *; }
 -keep class com.skydoves.balloon.** { *; }
 -keep class com.xiaobo.fireworks.** { public *; }
+# 本地离线 TTS：sherpa-onnx 靠 JNI 按类名反查 Java 方法，混淆后 JNI 调用会崩
+-keep class com.k2fsa.sherpa.onnx.** { *; }
+-keep class kotlin.** { *; }
+-dontwarn kotlin.**
 -keep class com.xiaobo.electronic.FireworkWallpaperService { *; }
 -keep class com.xiaobo.electronic.ScreenRecorderService { *; }
 -keepclassmembers class * implements android.os.Parcelable { public static final ** CREATOR; }

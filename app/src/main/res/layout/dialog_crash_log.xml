@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="4dp">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="false">
+
+        <TextView
+            android:id="@+id/tv_crash"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:paddingBottom="8dp"
+            android:textColor="#FFE0E0E0"
+            android:textSize="11sp"
+            android:typeface="monospace" />
+    </ScrollView>
+
+    <!-- 横屏下 AlertDialog 的系统按钮栏会被挤成 0 高度（踩过一次），
+         所以操作一律用显式按钮放在自定义布局里 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_crash_copy"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:paddingHorizontal="12dp"
+            android:text="复制"
+            android:textColor="@android:color/white"
+            app:rippleColor="#33FFD700" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_crash_share"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:paddingHorizontal="12dp"
+            android:text="发送给我"
+            android:textColor="#FFD700"
+            app:rippleColor="#33FFD700" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_crash_clear"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:paddingHorizontal="12dp"
+            android:text="清空"
+            android:textColor="#FF99AABB"
+            app:rippleColor="#33FFD700" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_crash_close"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:paddingHorizontal="12dp"
+            android:text="关闭"
+            android:textColor="#FF99AABB"
+            app:rippleColor="#33FFD700" />
+    </LinearLayout>
+</LinearLayout>

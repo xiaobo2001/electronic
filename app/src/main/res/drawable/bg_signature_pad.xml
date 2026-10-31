@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 手写画板底：深色玻璃 + 金边，让白色笔迹在夜里看得清 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#16FFFFFF" />
+    <stroke
+        android:width="1dp"
+        android:color="#3DFFD700" />
+    <corners android:radius="16dp" />
+</shape>

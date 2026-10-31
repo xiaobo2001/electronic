@@ -199,11 +199,14 @@ public class ParticleTextView extends View {
         canvas.drawText(text, width / 2f, y, textPaint);
 
         // ===== 【性能#22】采样范围裁剪：只扫文字实际包围盒，跳过全屏空白 =====
-        // drawText 以 (width/2, y) 为中心基线，把 bbox 平移到画布坐标；
-        // 采样量从屏面积降到文字面积（长台词/竖屏下降 80%+），生成结果不变
+        // 【修复#25】CENTER 对齐时 drawText(width/2, y) 的墨迹起点是 width/2 - W/2（W 为实宽），
+        // 裁剪窗口必须左移 W/2；此前窗口右移半行字宽，台词左半的粒子被裁掉（文字丢一半）。
+        // 注意 W 必须用缩放后字号的 measureText（textWidth 变量是缩放前测量值，不能用）
         textPaint.getTextBounds(text, 0, text.length(), textBBox);
-        int bx0 = Math.max(0, (int) (width / 2f + textBBox.left) - 4);
-        int bx1 = Math.min(width, (int) (width / 2f + textBBox.right) + 4);
+        float drawW = textPaint.measureText(text); // 缩放后字号的真实文字宽度
+        float drawX0 = width / 2f - drawW / 2f;    // CENTER 对齐下文字左端
+        int bx0 = Math.max(0, (int) (drawX0 + textBBox.left) - 4);
+        int bx1 = Math.min(width, (int) (drawX0 + textBBox.right) + 4);
         int by0 = Math.max(0, (int) (y + textBBox.top) - 4);
         int by1 = Math.min(height, (int) (y + textBBox.bottom) + 4);
         if (bx1 <= bx0 || by1 <= by0) {
@@ -211,17 +214,25 @@ public class ParticleTextView extends View {
             return;
         }
 
-        int step = sampleSize; // 采样密度（低端机自动加大，减少粒子数）
-        // 直接读取像素数组优化性能；复用数组避免反复分配 width*height 大小的 int[]
-        if (reusablePixels == null || reusablePixels.length != width * height) {
-            reusablePixels = new int[width * height];
+        // 【清晰度#25】采样步长随最终字号自适应：长句缩放后字号变小，同步加密采样，
+        // 保证中文笔画连续可认；字小面积小，粒子总量反而下降（性能无损）
+        float finalTs = textPaint.getTextSize();
+        int step = Math.max(2, Math.min(sampleSize, (int) (finalTs / 28f)));
+
+        // 【性能】只取文字包围盒内的像素。原实现整屏 getPixels：1080×2400 ≈ 259 万 int
+        // （≈10MB）每次台词拷贝一遍，而文字只占其中一小块。改为按 bbox 取值后省 80%+
+        // 内存带宽，栅格化结果与整屏取值完全一致。
+        int bw = bx1 - bx0;
+        int bh = by1 - by0;
+        if (reusablePixels == null || reusablePixels.length < bw * bh) {
+            reusablePixels = new int[bw * bh];
         }
         int[] pixels = reusablePixels;
-        sampleBitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+        sampleBitmap.getPixels(pixels, 0, bw, bx0, by0, bw, bh);
 
         for (int i = bx0; i < bx1; i += step) {
             for (int j = by0; j < by1; j += step) {
-                if (pixels[j * width + i] != 0) {
+                if (pixels[(j - by0) * bw + (i - bx0)] != 0) {
                     Particle p = new Particle();
                     p.targetX = i;
                     p.targetY = j;
@@ -250,7 +261,7 @@ public class ParticleTextView extends View {
                 tempParticles.clear();
                 for (int i = bx0; i < bx1; i += newStep) {
                     for (int j = by0; j < by1; j += newStep) {
-                        if (pixels[j * width + i] != 0) {
+                        if (pixels[(j - by0) * bw + (i - bx0)] != 0) {
                             Particle p = new Particle();
                             p.targetX = i;
                             p.targetY = j;
@@ -279,6 +290,10 @@ public class ParticleTextView extends View {
     /** 【随机特效#20】按入场风格确定粒子起点与出场延迟 */
     private void applyEntrance(Particle p, int width, int height) {
         p.speedFactor = 0.5f + random.nextFloat();
+        if (entranceStyle == EntranceStyle.BOUNCE) {
+            p.speedFactor = 1f; // 【修复#25】弹跳幕统一速度：过冲由插值器整体提供，
+            // 各粒子速度不同且不截断时，弹跳全程聚不成字（有一种特效看不到文字）
+        }
         double angle = random.nextDouble() * 2 * Math.PI;
         float r = Math.max(width, height);
         switch (entranceStyle) {
@@ -333,7 +348,14 @@ public class ParticleTextView extends View {
                 t = (t - p.delay) / (1f - p.delay);
                 if (t < 0f) t = 0f;
             }
-            float curr = t * p.speedFactor;
+            float curr;
+            if (bounce) {
+                curr = t; // 【修复#25】BOUNCE 统一进度，允许整体过冲>1 再回弹聚字
+            } else if (currentProgress >= 1f) {
+                curr = 1f; // 【修复#25】动画终点强制到位：慢粒子不再半路停靠，聚字清晰可认
+            } else {
+                curr = t * p.speedFactor;
+            }
             if (curr < 0f) curr = 0f;
             if (curr > 1f && !bounce) curr = 1f;
 

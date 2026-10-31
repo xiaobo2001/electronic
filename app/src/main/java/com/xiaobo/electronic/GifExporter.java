@@ -1,10 +1,14 @@
 package com.xiaobo.electronic;
 
+import android.content.ContentValues;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaScannerConnection;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
+import android.provider.MediaStore;
 import com.tencent.mmkv.MMKV;
 
 import java.io.File;
@@ -63,11 +67,37 @@ public class GifExporter {
             } catch (Throwable ignored) {
             }
             String outName = "romantic" + her + "_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".gif";
-            File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "RomanticFirework");
-            if (!dir.exists()) dir.mkdirs();
+
+            // Android 10+ 分区存储：必须经 MediaStore 写入公共 Pictures/，
+            // 直接 new File(getExternalStoragePublicDirectory(...)) 在 targetSdk 35 上会抛异常。
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues cv = new ContentValues();
+                cv.put(MediaStore.Images.Media.DISPLAY_NAME, outName);
+                cv.put(MediaStore.Images.Media.MIME_TYPE, "image/gif");
+                cv.put(MediaStore.Images.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_PICTURES + "/RomanticFirework");
+                cv.put(MediaStore.Images.Media.IS_PENDING, 1);
+                Uri uri = ctx.getContentResolver()
+                        .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) return null;
+                OutputStream os = ctx.getContentResolver().openOutputStream(uri);
+                if (os == null) return null;
+                writeGif(os, rgbFrames, gifW, gifH, 100);
+                ContentValues done = new ContentValues();
+                done.put(MediaStore.Images.Media.IS_PENDING, 0);
+                ctx.getContentResolver().update(uri, done, null, null);
+                return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                        + "/RomanticFirework/" + outName;
+            }
+
+            // Android 9 及以下：写入 App 私有目录（无需任何存储权限）
+            File dir = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+                    "RomanticFirework");
+            if (!dir.exists() && !dir.mkdirs()) return null;
             File out = new File(dir, outName);
             writeGif(new FileOutputStream(out), rgbFrames, gifW, gifH, 100);
-            MediaScannerConnection.scanFile(ctx, new String[]{out.getAbsolutePath()}, new String[]{"image/gif"}, null);
+            MediaScannerConnection.scanFile(ctx, new String[]{out.getAbsolutePath()},
+                    new String[]{"image/gif"}, null);
             return out.getAbsolutePath();
         } catch (Exception e) {
             e.printStackTrace();

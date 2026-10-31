@@ -15,11 +15,31 @@
     <!-- 动态壁纸必需权限 -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
+    <!-- 音乐律动：麦克风采集环境音量驱动节拍绽放（Manifest 未声明时系统会静默拒绝授权） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 离线语音模型首次使用时下载（约 25MB），之后永久离线识别 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- 视频导出：前台录屏服务 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 纪念日提醒：重启手机后 AlarmManager 闹钟会全部失效，必须开机重排 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- 定时演出：到点要能在息屏/锁屏上直接全屏展开（闹钟类场景的正规通道） -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- Android 11+ 包可见性：不声明则查询不到已安装的第三方 TTS 引擎（音色选择会是空的） -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
+        android:name=".App"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -27,13 +47,15 @@
         android:icon="@mipmap/icon1"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/icon1"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Electronic"
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="sensorLandscape">
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|density|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -55,6 +77,29 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
+        </receiver>
+
+        <!-- 纪念日提醒：开机/升级后重排闹钟；闹钟触发时发通知 -->
+        <receiver
+            android:name=".AnniversaryReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 定时自动演出：开机/升级后重排；到点发全屏通知并开演 -->
+        <receiver
+            android:name=".ScheduledShowReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="com.xiaobo.electronic.ACTION_SCHEDULED_SHOW" />
+            </intent-filter>
         </receiver>
 
         <provider

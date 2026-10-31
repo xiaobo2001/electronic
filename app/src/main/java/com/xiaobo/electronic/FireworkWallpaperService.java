@@ -67,11 +67,42 @@ public class FireworkWallpaperService extends WallpaperService {
             GlobalFirework.getInstance().init(getApplication(), -1);
 
             // 【关键】每个Engine独立创建自己的烟花渲染器
-            fireworkView = new FireworkView(getApplicationContext());
-            fireworkView.resume();
+            createRenderers();
 
-            starView = new SkyView(getApplicationContext());
-            // 复用库 SkyView 的夜空效果：按档位与用户设置（与 App 共用 MMKV）下发
+            // 壁纸帧率：独立档（低端 33ms、中端 33ms、高端 25ms）
+            frameDelay = Math.max(33, perf.wallpaperFrameDelayMs);
+            fireBaseMs = (int) (perf.wallpaperFireBaseMs * 1.5f); // 壁纸更省：频率降 1/3
+            fireRandomMs = perf.wallpaperFireRandomMs;
+            initFireworkPool();
+
+            // 启动独立绘制线程
+            drawThread = new HandlerThread("FireworkWallpaper_" + hashCode());
+            drawThread.start();
+            drawHandler = new Handler(drawThread.getLooper());
+        }
+
+        /**
+         * 创建本 Engine 的渲染器（星空 + 烟花）。
+         *
+         * Surface 可能被系统多次销毁重建（壁纸预览旋转、切桌面回来、系统回收 Surface），
+         * 因此不能只在 onCreate 建一次：重建时必须保证渲染器存在，否则
+         * drawFrame 里 fireworkView/starView 判空直接跳过，壁纸只剩纯黑。
+         */
+        private void createRenderers() {
+            if (fireworkView == null) {
+                fireworkView = new FireworkView(getApplicationContext());
+                fireworkView.setMaxParticles(3000);
+                fireworkView.resume();
+            }
+            if (starView == null) {
+                starView = new SkyView(getApplicationContext());
+                applySkyConfig();
+            }
+        }
+
+        /** 复用库 SkyView 的夜空效果：按档位与用户设置（与 App 共用 MMKV）下发 */
+        private void applySkyConfig() {
+            DevicePerf perf = DevicePerf.get(getApplicationContext());
             // ===== 壁纸独立省电档（#12新）：比 App 更保守的帧率/粒子预算 =====
             starView.setStarCount(Math.max(24, perf.starCount * 3 / 5));
             starView.setStarAntiAlias(perf.starAntiAlias);
@@ -82,24 +113,14 @@ public class FireworkWallpaperService extends WallpaperService {
             starView.setWeather(MMKV.defaultMMKV().decodeInt("weather_mode", 0));
             starView.setMoonEnabled(MMKV.defaultMMKV().decodeBool("moon_enabled", true));
             starView.setConstellationEnabled(MMKV.defaultMMKV().decodeBool("constellation_enabled", true));
-            // 壁纸帧率：独立档（低端 33ms、中端 33ms、高端 25ms）
-            frameDelay = Math.max(33, perf.wallpaperFrameDelayMs);
-            fireBaseMs = (int) (perf.wallpaperFireBaseMs * 1.5f); // 壁纸更省：频率降 1/3
-            fireRandomMs = perf.wallpaperFireRandomMs;
-            fireworkView.setMaxParticles(3000);
-            // 原始帧率参数从 DevicePerf 读取（壁纸省电档已覆盖为更保守值）
-            initFireworkPool();
-
-            // 启动独立绘制线程
-            drawThread = new HandlerThread("FireworkWallpaper_" + hashCode());
-            drawThread.start();
-            drawHandler = new Handler(drawThread.getLooper());
         }
 
         @Override
         public void onSurfaceCreated(SurfaceHolder holder) {
             super.onSurfaceCreated(holder);
             isSurfaceReady = true;
+            // Surface 重建后渲染器可能已在 onSurfaceDestroyed 释放，这里补建
+            createRenderers();
             checkAndStartDraw();
         }
 
@@ -107,6 +128,7 @@ public class FireworkWallpaperService extends WallpaperService {
         public void onSurfaceChanged(SurfaceHolder holder, int format, int width, int height) {
             super.onSurfaceChanged(holder, format, width, height);
             // 手动测量布局，确保渲染器获得正确尺寸
+            createRenderers();
             int widthSpec = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY);
             int heightSpec = View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY);
             fireworkView.measure(widthSpec, heightSpec);

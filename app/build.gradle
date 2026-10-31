@@ -10,15 +10,35 @@ android {
         applicationId "com.xiaobo.electronic"
         minSdk 24
         targetSdk 35
-        versionCode 1115
-        versionName "1.1.5"
+        versionCode 1301
+        versionName "1.3.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // 本地 TTS 只打 arm64：省约 14MB。32 位老机本就跑不动神经网络推理，
+        // 装上也会走系统音色降级，不如不让它装。
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    // onnx / fst / txt 必须保持未压缩：sherpa-onnx 直接映射文件内存，
+    // 压缩过的资源拿不到连续内存，会静默加载失败（表现为一直降级到系统音色）。
+    // 现在 ASR 识别模型与 TTS 音色模型都是运行时下载到 filesDir（见 ModelDownloader），
+    // assets 里已无这类文件；配置留着是防止哪天重新内置模型时踩同一个坑。
+    androidResources {
+        noCompress 'onnx', 'fst', 'txt'
+    }
+
+    packagingOptions {
+        // AAR 与依赖可能同时携带 libc++_shared.so，取其一即可
+        pickFirst '**/libc++_shared.so'
     }
 
     buildTypes {
         release {
             minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -41,5 +61,15 @@ dependencies {
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
     implementation libs.balloon
+    // 吐司框架：全局统一浪漫风格 Toast（替代系统原生黑块 Toast）
+    implementation libs.toaster
+
+    // 本地离线神经网络 TTS + ASR：sherpa-onnx（VITS 中文 + zipformer 流式识别）
+    // 模型不随包，检测到需要时按需下载（AsrModelStore / TtsModelStore），省约 45MB 体积
+    implementation files('libs/sherpa-onnx-1.13.2.aar')
+    implementation libs.kotlin.stdlib
+
+    // 二维码生成（只编码不识别：扫码交给系统相机/微信，省掉相机权限与预览链路）
+    implementation 'com.google.zxing:core:3.5.3'
 
 }

@@ -75,6 +75,15 @@
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_pick_preset"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="💌 挑一套现成文案（7 大场景）"
+            android:textSize="13sp" />
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/til_seconds"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"

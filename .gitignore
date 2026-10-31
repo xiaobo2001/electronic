@@ -16,3 +16,14 @@ local.properties
 
 .temp/
 app/release/
+
+# 旧的随包 TTS 模型备份（已改为按需下载，20MB）
+.model-backup/
+
+# 音色/识别模型本地打包产物：体积大，通常由服务器分发
+# 保留 voicepacks 下的说明文档与 voice-sources.json
+voicepacks/*.zip
+voicepacks/xiaoya/
+voicepacks/chaowen/
+voicepacks/aishell3/
+voicepacks/asr/

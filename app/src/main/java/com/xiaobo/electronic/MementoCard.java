@@ -77,17 +77,45 @@ public class MementoCard {
             drawHeart(c, w / 2f, h * 0.30f, 26f, 0xFFFF69B4, p);
 
             // 告白台词（多行，竖排居中）
-            p.setColor(0xFFFFFFFF);
-            p.setTextSize(64f);
-            p.setTypeface(Typeface.DEFAULT_BOLD);
-            float textY = h * 0.42f;
-            int maxLines = Math.min(lines.size(), 6);
-            for (int i = 0; i < maxLines; i++) {
-                String line = lines.get(i);
-                if (line.length() > 14) line = line.substring(0, 14);
-                p.setAlpha(245);
-                c.drawText(line, w / 2f, textY, p);
-                textY += 96f;
+            // 【修复】此前写死最多 6 行、且每行硬截 14 字，而台词上限是 10 行，
+            // 结果第 7~10 行被静默丢弃、长句被砍掉尾巴 —— 卡片上的告白是不完整的。
+            // 改为按行数自适应行距与字号：行多就压缩行距，长句就整体缩小字号，
+            // 宁可字小也不丢字，保证全部台词完整落在卡片内。
+            java.util.List<String> poem = (lines == null)
+                    ? java.util.Collections.<String>emptyList() : lines;
+            int n = Math.min(poem.size(), RomanticShareCodec.MAX_LINES);
+            if (n > 0) {
+                float topY = h * 0.42f;
+                float bottomLimit = h * 0.80f; // 底部要留给星座行、专属落款
+                // n<=6 时维持原本 96px 行距（观感不变），超过 6 行才按比例压缩
+                float lineH = Math.min(96f, (bottomLimit - topY) / Math.max(1, n - 1));
+
+                p.setColor(0xFFFFFFFF);
+                p.setTypeface(Typeface.DEFAULT_BOLD);
+                float textSize = Math.min(64f, lineH * 0.72f);
+                p.setTextSize(textSize);
+
+                // 按最长的一行适配宽度：超出可用宽度就整体等比缩小字号，而不是截断文字
+                float maxW = w * 0.86f;
+                float widest = 0f;
+                for (int i = 0; i < n; i++) {
+                    String s = poem.get(i);
+                    if (s == null || s.isEmpty()) continue;
+                    widest = Math.max(widest, p.measureText(s));
+                }
+                if (widest > maxW && widest > 0f) {
+                    textSize *= maxW / widest;
+                    p.setTextSize(textSize);
+                }
+
+                float textY = topY;
+                for (int i = 0; i < n; i++) {
+                    String line = poem.get(i);
+                    if (line == null || line.isEmpty()) continue;
+                    p.setAlpha(245);
+                    c.drawText(line, w / 2f, textY, p);
+                    textY += lineH;
+                }
             }
 
             // 星座与月相落款
@@ -97,7 +125,31 @@ public class MementoCard {
             c.drawText(zodiacName + "座之夜 · " + moonPhaseName(moonAge), w / 2f, h * 0.84f, p);
             p.setTextSize(30f);
             p.setAlpha(140);
-            c.drawText("—— 遇见你真好 ——", w / 2f, h * 0.90f, p);
+
+            // 【手写签名】有亲笔签名时顶掉"遇见你真好"这行——
+            // 签名本身就是落款，两者同框既挤又重复。没有签名则维持原样。
+            Bitmap sign = SignatureStore.load(ctx);
+            if (sign != null && sign.getWidth() > 0 && sign.getHeight() > 0) {
+                float targetH = 82f;
+                float sx = targetH / sign.getHeight();
+                float dw = sign.getWidth() * sx;
+                float maxW = w * 0.46f;
+                if (dw > maxW) {
+                    sx *= maxW / dw;
+                    dw = maxW;
+                    targetH = sign.getHeight() * sx;
+                }
+                Paint sp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                sp.setAlpha(225);
+                // 白色描边染成金色：与日期、落款的金色调一致，也更像"签在卡片上的字"
+                sp.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                        0xFFFFD700, android.graphics.PorterDuff.Mode.SRC_ATOP));
+                c.drawBitmap(sign, null,
+                        new android.graphics.RectF(w / 2f - dw / 2f, h * 0.895f - targetH / 2f,
+                                w / 2f + dw / 2f, h * 0.895f + targetH / 2f), sp);
+            } else {
+                c.drawText("—— 遇见你真好 ——", w / 2f, h * 0.90f, p);
+            }
 
             // 【#23】专属落款：给她 + 你的名字（有名字才有落款行）
             if (herName != null && !herName.isEmpty()) {

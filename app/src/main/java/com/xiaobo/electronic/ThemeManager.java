@@ -101,7 +101,11 @@ public class ThemeManager {
     /** 各主题的图形 emoji（与 fireworkPool 顺序对应，shapeBitmap(null) 的槽位在此顺序注入） */
     public static String[] poolEmojis(int theme) {
         switch (theme) {
-            case THEME_SPRING: return new String[]{"🧧", null, null, null};
+            // 下标必须与 fireworkPool(THEME_SPRING) 的槽位一一对应：
+            // [0]=福字(TEXT) [1]=红金圆(CIRCLE) [2]=红包(CUSTOM) [3]=火箭金(CIRCLE)
+            // 此前 🧧 放在下标 0，红包图形被塞给了"福"字烟花，而真正的红包位仍是
+            // shapeBitmap=null 的 CUSTOM（渲染空白或崩溃）
+            case THEME_SPRING: return new String[]{null, null, "🧧", null};
             case THEME_BIRTHDAY: return new String[]{"🎂", null, "🎈", null};
             case THEME_CHRISTMAS: return new String[]{"🎄", null, null, null};
             default: return null;
@@ -114,7 +118,7 @@ public class ThemeManager {
             case THEME_SPRING: return "新的一年\n愿与你岁岁常相见";
             case THEME_BIRTHDAY: return "生日快乐\n愿你所有愿望都实现";
             case THEME_CHRISTMAS: return "圣诞快乐\n平安喜乐 与你有关";
-            default: return "小美 遇见你真好\n往后余生，请多指教";
+            default: return "小美，遇见你真好\n往后余生，请多指教\n朝暮四季，我都在旁\n柴米烟火，和你共享\n风雨来时，我来抵挡\n平凡日常，慢慢珍藏\n所有温柔，尽数予你\n心有所属，便是远方\n不问喧嚣，只守身旁\n岁岁年年，不负相逢";
         }
     }
 

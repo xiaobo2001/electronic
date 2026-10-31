@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:maxHeight="460dp"
-    android:scrollbars="none">
+    android:fadeScrollbars="false"
+    android:scrollbars="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -75,6 +76,19 @@
             android:textSize="15sp" />
 
         <TextView
+            android:id="@+id/tv_speech"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🔊 台词朗读（音色选择）"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
             android:id="@+id/tv_theme"
             android:layout_width="match_parent"
             android:layout_height="44dp"
@@ -121,6 +135,32 @@
             android:paddingHorizontal="20dp"
             android:text="✍ 自定义文字"
             android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_presets"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="💌 告白文案库（7 大场景）"
+            android:textColor="#FFD700"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_templates"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🎬 演出模板（一键整场风格）"
+            android:textColor="#FFD700"
             android:textSize="15sp" />
 
         <TextView
@@ -172,6 +212,146 @@
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
             android:text="🌌 纯净模式（隐藏按钮栏）"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <!-- ===== 分组：创作与自动化 ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="28dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="— 创作与自动化 —"
+            android:textColor="#8899AA"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tv_signature"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="✍ 手写签名烟花"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_photos"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🖼 照片回忆墙"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_font"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="✍ 文字烟花字体"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_tuning"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🎛 烟花手感调参"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_voice"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🎤 语音输入台词"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_wish"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🌟 星空许愿墙"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_scripts"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="📜 我的剧本库"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_qr_code"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="📷 生成二维码给她扫"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_schedule"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="⏰ 定时自动演出"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_sound_fx"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🔔 音效与触感"
             android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
@@ -284,6 +464,19 @@
             android:paddingHorizontal="20dp"
             android:text="📱 设置为桌面壁纸"
             android:textColor="#FF1493"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tv_crash_log"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🐞 崩溃日志（发送给我定位问题）"
+            android:textColor="#FFFFFF"
             android:textSize="15sp" />
 
         <TextView

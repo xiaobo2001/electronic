@@ -10,6 +10,8 @@ material = "1.13.0"
 activity = "1.8.0"
 constraintlayout = "2.2.1"
 mmkv = "2.3.0"
+toaster = "15.2"
+kotlinStdlib = "1.9.24"
 
 [libraries]
 balloon = { module = "com.github.skydoves:balloon", version.ref = "balloon" }
@@ -22,6 +24,8 @@ material = { group = "com.google.android.material", name = "material", version.r
 activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
 constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 mmkv = { module = "com.tencent:mmkv", version.ref = "mmkv" }
+toaster = { module = "com.github.getActivity:Toaster", version.ref = "toaster" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlinStdlib" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

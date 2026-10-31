@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 烟花手感调参：密度 / 速度 / 下坠感 / 拖尾 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="22dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/tv_density_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="粒子密度  35%"
+            android:textColor="#FFD700"
+            android:textSize="13sp" />
+
+        <!-- 初值必须是 valueFrom + n×stepSize 的刻度值：写 33.0 会在布局阶段直接崩 -->
+        <com.google.android.material.slider.Slider
+            android:id="@+id/slider_density"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:stepSize="5.0"
+            android:value="35.0"
+            android:valueFrom="0.0"
+            android:valueTo="100.0" />
+
+        <TextView
+            android:id="@+id/tv_speed_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="爆炸速度  40%"
+            android:textColor="#FFD700"
+            android:textSize="13sp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/slider_speed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:stepSize="5.0"
+            android:value="40.0"
+            android:valueFrom="0.0"
+            android:valueTo="100.0" />
+
+        <TextView
+            android:id="@+id/tv_fall_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="下坠感  40%（越大越快坠下）"
+            android:textColor="#FFD700"
+            android:textSize="13sp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/slider_fall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:stepSize="5.0"
+            android:value="40.0"
+            android:valueFrom="0.0"
+            android:valueTo="100.0" />
+
+        <TextView
+            android:id="@+id/tv_trail_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="拖尾长度  35%"
+            android:textColor="#FFD700"
+            android:textSize="13sp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/slider_trail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:stepSize="5.0"
+            android:value="35.0"
+            android:valueFrom="0.0"
+            android:valueTo="100.0" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:lineSpacingExtra="2dp"
+            android:text="调完点「放一朵看看」，不满意就「恢复默认」。\n库里的重力是写死的，这里用滞空时长近似出下坠感。"
+            android:textColor="#8899AA"
+            android:textSize="11sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_reset"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="恢复默认" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_preview"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="放一朵看看" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_done"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="好了" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

@@ -29,16 +29,18 @@
         android:layout_height="match_parent"
         android:elevation="10dp" />
 
-    <!-- 加载遮罩：引擎未就绪时显示 -->
+    <!-- 加载遮罩：引擎未就绪时显示（圆角金边卡片，替代原直角黑块） -->
     <LinearLayout
         android:id="@+id/loading_overlay"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="#99000000"
+        android:background="@drawable/bg_loading_card"
         android:elevation="30dp"
         android:gravity="center"
         android:orientation="vertical"
-        android:padding="32dp"
+        android:paddingHorizontal="40dp"
+        android:paddingVertical="28dp"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -60,14 +62,17 @@
             android:textSize="14sp" />
     </LinearLayout>
 
-    <!-- 3. 底部操作栏（【UI#24】MaterialButton 统一 MD3 质感：圆角/涟漪/大触达区） -->
+    <!-- 3. 底部操作栏（胶囊底 + MaterialButton：圆角/涟漪/大触达区） -->
     <LinearLayout
         android:id="@+id/ll_bottom_bar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="14dp"
+        android:background="@drawable/bg_bottom_bar"
         android:elevation="20dp"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="16dp"
+        android:padding="10dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">

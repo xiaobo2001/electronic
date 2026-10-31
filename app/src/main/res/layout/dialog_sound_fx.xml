@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 音效与触感：开关 + 音量 + 试听 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="4dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:lineSpacingExtra="2dp"
+        android:text="升空有“咻”、炸开有“嘭”、她点“我愿意”时有一段铃音；震动跟着爆炸走。朗读台词时会自动压低，不盖人声。"
+        android:textColor="#DDDDDD"
+        android:textSize="13sp" />
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/sw_sound"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="烟花音效"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp" />
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/sw_vibrate"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="震动反馈"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/tv_volume_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="音量  60%"
+        android:textColor="#FFD700"
+        android:textSize="13sp" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/slider_volume"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stepSize="5.0"
+        android:value="60.0"
+        android:valueFrom="0.0"
+        android:valueTo="100.0" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_preview"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="试听一声" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_close"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="好了" />
+    </LinearLayout>
+</LinearLayout>

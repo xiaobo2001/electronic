@@ -46,10 +46,17 @@ public class RomanticShareCodecTest {
         assertEquals("有效句", lines.get(0));
     }
 
+    /**
+     * 行数上限：MAX_LINES 已由 4 放宽到 10（浪漫模式支持十句告白），
+     * 断言直接用常量，避免以后调参时测试与实现再次脱节。
+     */
     @Test
-    public void splitLines_maxFour() {
-        List<String> lines = RomanticShareCodec.splitLines("1\n2\n3\n4\n5\n6");
-        assertEquals(4, lines.size());
+    public void splitLines_maxLines() {
+        List<String> lines = RomanticShareCodec.splitLines("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12");
+        assertEquals(RomanticShareCodec.MAX_LINES, lines.size());
+        assertEquals("1", lines.get(0));
+        // 第 10 行是最后保留的一句，第 11/12 行应被截断
+        assertEquals("10", lines.get(RomanticShareCodec.MAX_LINES - 1));
     }
 
     @Test

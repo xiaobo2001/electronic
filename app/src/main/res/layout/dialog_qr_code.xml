@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 二维码分享：让对方扫一下就拿到完整台词 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="6dp">
+
+    <ImageView
+        android:id="@+id/img_qr"
+        android:layout_width="240dp"
+        android:layout_height="240dp"
+        android:background="#FFFFFF"
+        android:contentDescription="分享码二维码"
+        android:scaleType="fitCenter" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:lineSpacingExtra="2dp"
+        android:text="让她用相机或微信扫一扫，就能拿到这段分享码；\n她那边打开「导入分享码」粘贴即可复刻整场演出。"
+        android:textColor="#DDDDDD"
+        android:textSize="13sp" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_save_qr"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="保存到相册" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_close_qr"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="关闭" />
+    </LinearLayout>
+</LinearLayout>

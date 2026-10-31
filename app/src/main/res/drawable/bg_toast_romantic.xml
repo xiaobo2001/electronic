@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 浪漫风格 Toast 底色：夜空紫蓝渐变 + 金色细描边，圆角胶囊 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <gradient
+        android:angle="0"
+        android:endColor="#F21B2B4E"
+        android:startColor="#F23A2159"
+        android:type="linear" />
+
+    <stroke
+        android:width="1dp"
+        android:color="#5CFFD700" />
+
+    <corners android:radius="24dp" />
+
+    <padding
+        android:bottom="11dp"
+        android:left="22dp"
+        android:right="22dp"
+        android:top="11dp" />
+</shape>

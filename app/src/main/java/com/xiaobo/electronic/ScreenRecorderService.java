@@ -7,6 +7,9 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.net.Uri;
+import android.provider.MediaStore;
+import android.content.ContentValues;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.MediaCodec;
@@ -26,10 +29,13 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Surface;
 import android.view.WindowManager;
-import android.widget.Toast;
+import com.hjq.toast.Toaster;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -47,6 +53,8 @@ public class ScreenRecorderService extends Service {
     public static final String EXTRA_RESULT_CODE = "result_code";
     public static final String EXTRA_RESULT_DATA = "result_data";
     public static final String EXTRA_OUTPUT_PATH = "output_path";
+    /** 写入公共相册后的 content:// Uri（可能为 null：Android 10 以下或未入册成功） */
+    public static final String EXTRA_OUTPUT_URI = "output_uri";
     public static final String EXTRA_ERROR = "error";
 
     private static final String CHANNEL_ID = "romantic_recorder";
@@ -149,7 +157,7 @@ public class ScreenRecorderService extends Service {
         Intent resultData = intent != null ? intent.getParcelableExtra(EXTRA_RESULT_DATA) : null;
 
         if (resultData == null) {
-            Toast.makeText(this, "录屏授权无效", Toast.LENGTH_SHORT).show();
+            Toaster.showShort("录屏授权无效");
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -159,7 +167,7 @@ public class ScreenRecorderService extends Service {
                     (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
             mediaProjection = pm.getMediaProjection(resultCode, resultData);
             if (mediaProjection == null) {
-                Toast.makeText(this, "无法获得录屏权限", Toast.LENGTH_SHORT).show();
+                Toaster.showShort("无法获得录屏权限");
                 stopSelf();
                 return START_NOT_STICKY;
             }
@@ -206,20 +214,81 @@ public class ScreenRecorderService extends Service {
         }
     }
 
+    /**
+     * 输出文件准备。
+     *
+     * Android 10（API 29）起分区存储生效：App 不能直接往公共 Movies/ 目录 new File() 写东西，
+     * 原实现在 targetSdk 35 上必然抛 FileNotFoundException，录制 100% 失败。
+     * 改为先编码到 App 私有目录（免权限、始终可写），录制成功后再经 MediaStore
+     * 复制一份到公共 Movies/RomanticFirework，保证系统相册可见、卸载前不丢。
+     */
     private void prepareOutput() throws IOException {
-        File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
-                "RomanticFirework");
-        if (!dir.exists()) dir.mkdirs();
-        String her = "";
+        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MOVIES), "RomanticFirework");
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IOException("无法创建输出目录：" + dir.getAbsolutePath());
+        }
+        String name = "romantic" + herNameSuffix() + "_" + timeStamp() + ".mp4";
+        outputFile = new File(dir, name);
+        mediaMuxer = new MediaMuxer(outputFile.getAbsolutePath(),
+                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+        Log.i(TAG, "output -> " + outputFile.getAbsolutePath());
+    }
+
+    /** 【#23】文件名带她的名字+日期：录完不用改名就能直接发给她 */
+    private String herNameSuffix() {
         try {
-            // 【#23】录屏文件名带她的名字+日期：录完不用改名就能直接发给她
             String n = MMKV.defaultMMKV().decodeString("romantic_her_name", "");
-            if (n != null && !n.trim().isEmpty()) her = "_" + n.trim();
+            if (n != null && !n.trim().isEmpty()) return "_" + n.trim();
         } catch (Throwable ignored) {
         }
-        String name = "romantic" + her + "_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".mp4";
-        outputFile = new File(dir, name);
-        mediaMuxer = new MediaMuxer(outputFile.getAbsolutePath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+        return "";
+    }
+
+    private String timeStamp() {
+        return new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+    }
+
+    /**
+     * 把私有目录的成品复制到公共相册（仅 API 29+）。
+     * 失败不影响录制本身——视频仍在 App 私有目录，可正常分享。
+     */
+    private Uri publishToGallery(File src) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null;
+        Uri uri = null;
+        try {
+            ContentValues cv = new ContentValues();
+            cv.put(MediaStore.Video.Media.DISPLAY_NAME, src.getName());
+            cv.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+            cv.put(MediaStore.Video.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_MOVIES + "/RomanticFirework");
+            cv.put(MediaStore.Video.Media.IS_PENDING, 1);
+            uri = getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, cv);
+            if (uri == null) return null;
+
+            OutputStream out = getContentResolver().openOutputStream(uri);
+            if (out == null) return null;
+            InputStream in = new FileInputStream(src);
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            in.close();
+            out.close();
+
+            ContentValues done = new ContentValues();
+            done.put(MediaStore.Video.Media.IS_PENDING, 0);
+            getContentResolver().update(uri, done, null, null);
+            Log.i(TAG, "published to gallery: " + uri);
+            return uri;
+        } catch (Exception e) {
+            Log.e(TAG, "publish to gallery failed", e);
+            if (uri != null) {
+                try {
+                    getContentResolver().delete(uri, null, null);
+                } catch (Exception ignored) {
+                }
+            }
+            return null;
+        }
     }
 
     private void setupEncoder() {
@@ -331,10 +400,14 @@ public class ScreenRecorderService extends Service {
                 if (outputFile != null && outputFile.exists()) outputFile.delete();
                 broadcastFailure(errorMsg != null ? errorMsg : "未捕获到画面（请确认授权后保持 App 在前台）");
             } else {
-                MediaScannerConnection.scanFile(this,
-                        new String[]{outputFile.getAbsolutePath()},
-                        new String[]{"video/mp4"}, null);
-                broadcastSuccess();
+                // 先入公共相册；未入册成功时退化为扫描私有文件（尽力而为，失败无副作用）
+                Uri galleryUri = publishToGallery(outputFile);
+                if (galleryUri == null) {
+                    MediaScannerConnection.scanFile(this,
+                            new String[]{outputFile.getAbsolutePath()},
+                            new String[]{"video/mp4"}, null);
+                }
+                broadcastSuccess(galleryUri);
             }
         } catch (Exception e) {
             Log.e(TAG, "finish error", e);
@@ -344,10 +417,11 @@ public class ScreenRecorderService extends Service {
         }
     }
 
-    private void broadcastSuccess() {
+    private void broadcastSuccess(Uri galleryUri) {
         Intent i = new Intent(ACTION_STOPPED);
         i.setPackage(getPackageName());
         i.putExtra(EXTRA_OUTPUT_PATH, outputFile.getAbsolutePath());
+        if (galleryUri != null) i.putExtra(EXTRA_OUTPUT_URI, galleryUri.toString());
         sendBroadcast(i);
     }
 

@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "packs": {
+    "tts_xiaoya":   { "zip": ["http://8.130.169.254/tts/xiaoya.zip"],   "bytes": 13769076 },
+    "tts_chaowen":  { "zip": ["http://8.130.169.254/tts/chaowen.zip"],  "bytes": 13788275 },
+    "tts_aishell3": { "zip": ["http://8.130.169.254/tts/aishell3.zip"], "bytes": 33434658 },
+    "asr":          { "zip": ["http://8.130.169.254/tts/asr.zip"],      "bytes": 20945582 }
+  }
+}

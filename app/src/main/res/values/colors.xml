@@ -2,4 +2,38 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- ===== 浪漫粉金主色板 ===== -->
+    <!-- 主粉：主按钮、强调文案、选中态 -->
+    <color name="romantic_pink">#FFFF69B4</color>
+    <!-- 深粉/玫红：实心主按钮填充，与浅粉形成层次 -->
+    <color name="romantic_deep">#FFE91E63</color>
+    <!-- 金：副强调、开启状态提示点 -->
+    <color name="gold">#FFFFD700</color>
+    <!-- 暖金：菜单开启态文字，比纯金柔和 -->
+    <color name="gold_soft">#FFFFE08A</color>
+
+    <!-- ===== 夜空底色 ===== -->
+    <!-- 浪漫模式专属底：比纯黑更有夜的层次 -->
+    <color name="night_romantic">#FF0A000F</color>
+    <!-- 普通夜空底 -->
+    <color name="night_ink">#FF05050C</color>
+
+    <!-- ===== 浮层与容器 ===== -->
+    <!-- 底部按钮栏胶囊底：半透明黑，浮在烟花上不遮挡 -->
+    <color name="scrim_bar">#66000000</color>
+    <!-- 加载卡片 / 弹层遮罩底 -->
+    <color name="scrim_card">#CC111111</color>
+    <!-- 应答遮罩：压暗背景让文案可读 -->
+    <color name="scrim_answer">#66000000</color>
+    <!-- 次级按钮（再想想）弱化处理 -->
+    <color name="btn_secondary">#80000000</color>
+
+    <!-- ===== 文字 ===== -->
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#B3FFFFFF</color>
+    <!-- 分组标题、弱化提示 -->
+    <color name="text_hint">#FF8899AA</color>
+    <!-- 结束演出等弱化操作 -->
+    <color name="text_quiet">#FF99AABB</color>
 </resources>
