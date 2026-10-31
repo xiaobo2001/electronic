@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertNull;
+import com.xiaobo.electronic.speech.PackSources;
 
 /**
  * 源清单合并逻辑的测试。

@@ -5,6 +5,8 @@ import org.junit.Test;
 import java.util.Calendar;
 
 import static org.junit.Assert.assertEquals;
+import com.xiaobo.electronic.show.ScheduledShow;
+import com.xiaobo.electronic.data.WishStore;
 
 /**
  * 定时演出与许愿墙的时间口径测试。

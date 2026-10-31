@@ -8,6 +8,8 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import com.xiaobo.electronic.data.AnniversaryReminder;
+import com.xiaobo.electronic.data.AnniversaryStore;
 
 /**
  * 纪念日提醒的日期计算测试。

@@ -23,7 +23,7 @@
         android:elevation="1dp" />
 
     <!-- 2. 魔幻粒子文字 (全屏覆盖) -->
-    <com.xiaobo.electronic.ParticleTextView
+    <com.xiaobo.electronic.view.ParticleTextView
         android:id="@+id/particle_text_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

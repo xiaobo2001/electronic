@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import java.util.List;
+import com.xiaobo.electronic.data.RomanticShareCodec;
 
 /**
  * 【#13】分享码编解码单元测试：v1/v2 往返 + 边界。

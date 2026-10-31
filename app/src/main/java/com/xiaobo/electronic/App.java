@@ -5,6 +5,11 @@ import android.view.Gravity;
 
 import com.hjq.toast.Toaster;
 import com.hjq.toast.style.CustomToastStyle;
+import com.xiaobo.electronic.data.AnniversaryReceiver;
+import com.xiaobo.electronic.data.AnniversaryReminder;
+import com.xiaobo.electronic.util.CrashLogger;
+import com.xiaobo.electronic.show.ScheduledShow;
+import com.xiaobo.electronic.show.ScheduledShowReceiver;
 
 /**
  * 应用入口。

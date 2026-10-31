@@ -3,6 +3,7 @@ package com.xiaobo.electronic;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
+import com.xiaobo.electronic.util.SliderSafe;
 
 /**
  * 滑块刻度对齐：Material Slider 带 stepSize 时只接受 valueFrom + n×stepSize，

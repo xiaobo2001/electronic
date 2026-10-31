@@ -8,6 +8,7 @@ import java.io.IOException;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import com.xiaobo.electronic.speech.ModelDownloader;
 
 /**
  * 下载完整性判据的回归测试。

@@ -52,7 +52,7 @@
         android:theme="@style/Theme.Electronic"
         tools:targetApi="31">
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.MainActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|density|uiMode">
@@ -63,13 +63,13 @@
             </intent-filter>
         </activity>
         <service
-            android:name=".ScreenRecorderService"
+            android:name=".media.ScreenRecorderService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
         <!-- 【#19】桌面小组件：一键浪漫 -->
         <receiver
-            android:name=".RomanticWidgetProvider"
+            android:name=".ui.RomanticWidgetProvider"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -81,7 +81,7 @@
 
         <!-- 纪念日提醒：开机/升级后重排闹钟；闹钟触发时发通知 -->
         <receiver
-            android:name=".AnniversaryReceiver"
+            android:name=".data.AnniversaryReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -92,7 +92,7 @@
 
         <!-- 定时自动演出：开机/升级后重排；到点发全屏通知并开演 -->
         <receiver
-            android:name=".ScheduledShowReceiver"
+            android:name=".show.ScheduledShowReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -113,7 +113,7 @@
         </provider>
 
         <service
-            android:name=".FireworkWallpaperService"
+            android:name=".view.FireworkWallpaperService"
             android:exported="true"
             android:label="烟花动态壁纸"
             android:permission="android.permission.BIND_WALLPAPER">
