@@ -3648,6 +3648,9 @@ public class MainActivity extends AppCompatActivity {
 
         // 显示在按钮上方
         balloon.showAsDropDown(anchor, 0, -16);
+        // 【修复】开菜单那一下已经占用了防连点窗口，不重置的话
+        // 紧接着点菜单项会被当成手抖吞掉，表现为"点了没反应"
+        UiGuard.resetTap();
     }
 
     /** 【#17】节日主题选择 */

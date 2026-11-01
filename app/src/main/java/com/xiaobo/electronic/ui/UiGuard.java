@@ -82,6 +82,18 @@ public final class UiGuard {
         return true;
     }
 
+    /**
+     * 清掉连点计时，让下一次点击必定生效。
+     *
+     * <p>防连点是全局的：点「更多」开菜单本身也算一次点击并记下时间。
+     * 用户手快时会在 600ms 内接着点菜单项，这一次会被判定为手抖直接丢弃——
+     * 表现为"点了没反应"，且因为弹窗根本没弹出来，用户只会以为是这个功能坏了。
+     * 菜单展开时调一次，保证展开后的第一下一定算数。
+     */
+    public static void resetTap() {
+        lastTapMs = 0L;
+    }
+
     /** 带防连点的点击绑定 */
     public static void onClick(View v, Runnable action) {
         if (v == null || action == null) return;
@@ -136,13 +148,16 @@ public final class UiGuard {
             if (!canShow(getContext())) {
                 try {
                     d = create();
-                } catch (Throwable ignored) {
+                } catch (Throwable t) {
+                    // 【修复】静默吞异常=用户眼里就是"点了没反应"，至少留下线索
+                    android.util.Log.w("UiGuard", "dialog create failed", t);
                     return null;
                 }
             } else {
                 try {
                     d = super.show();
-                } catch (Throwable ignored) {
+                } catch (Throwable t) {
+                    android.util.Log.w("UiGuard", "dialog show failed", t);
                     return null;
                 }
             }

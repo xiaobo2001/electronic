@@ -82,6 +82,18 @@ public class ScreenRecorderService extends Service {
     private int videoTrackIndex = -1;
     private boolean isStopping = false;
     private int framesWritten = 0;
+    /** 真正开录过（授权拿到、准备写文件）；没开录就不该弹"录制失败"打扰用户 */
+    private boolean started = false;
+    /**
+     * 收尾只准跑一次。
+     *
+     * <p>【真机必现的"录屏失败"根因】收尾跑完会 stopSelf()，系统随即回调 onDestroy()，
+     * 而 onDestroy() 里又调了一次 finishRecording()。第二次进来时 muxer 已释放、
+     * muxerStarted 已被置回 false，于是 ok=false —— 判定失败，
+     * <b>把刚录好的 MP4 删掉</b>，并广播 ACTION_FAILED（"未捕获到画面"）。
+     * 表现是：每次录制都弹"录制失败"，相册里也永远找不到视频。
+     */
+    private boolean finished = false;
     private String errorMsg = null;
     private File outputFile;
 
@@ -164,6 +176,16 @@ public class ScreenRecorderService extends Service {
             return START_NOT_STICKY;
         }
 
+        // 服务实例被复用的情况（上一段刚 stopSelf、系统还没来得及销毁）：
+        // 不重置的话 isStopping/finished 还是上一段录制的终态，新的一段必然立刻收尾失败
+        isStopping = false;
+        finished = false;
+        framesWritten = 0;
+        muxerStarted = false;
+        videoTrackIndex = -1;
+        errorMsg = null;
+        outputFile = null;
+
         try {
             MediaProjectionManager pm =
                     (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
@@ -183,6 +205,7 @@ public class ScreenRecorderService extends Service {
             };
             mediaProjection.registerCallback(projectionCallback, null);
             callbackRegistered = true;
+            started = true;
             prepareOutput();
             setupEncoder();
             startVirtualDisplay();
@@ -300,7 +323,10 @@ public class ScreenRecorderService extends Service {
 
         videoWidth = dm.widthPixels & ~1;
         videoHeight = dm.heightPixels & ~1;
+        // 【修复】原式在高分屏上算出 40~60Mbps，编码器吃不消时直接报错/掉帧，
+        // 12 秒视频还能写出 70MB。屏幕内容以静态色块为主，12Mbps 足够清晰。
         int bitrate = Math.max(4_000_000, videoWidth * videoHeight * FRAME_RATE * 3 / 5);
+        bitrate = Math.min(bitrate, 12_000_000);
 
         MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC,
                 videoWidth, videoHeight);
@@ -352,7 +378,9 @@ public class ScreenRecorderService extends Service {
         });
     }
 
-    private void finishRecording() {
+    private synchronized void finishRecording() {
+        if (finished) return;   // 见字段注释：二次收尾会误删成品并误报失败
+        finished = true;
         try {
             if (mediaCodec != null) {
                 try { mediaCodec.stop(); } catch (Exception ignored) {}
@@ -398,7 +426,11 @@ public class ScreenRecorderService extends Service {
             Log.i(TAG, "finishRecording: ok=" + ok + ", frames=" + framesWritten + ", size=" + size);
 
             // 校验：必须有足够帧且文件 > 50KB 才算成功；否则删掉空文件并上报失败
-            if (!ok || framesWritten < 10 || size < 50 * 1024) {
+            if (!started) {
+                // 压根没开录（授权无效等），别弹"录制失败"吓人；只清理残留文件
+                if (outputFile != null && outputFile.exists()) outputFile.delete();
+                Log.w(TAG, "finishRecording: never started, skip notify");
+            } else if (!ok || framesWritten < 10 || size < 50 * 1024) {
                 if (outputFile != null && outputFile.exists()) outputFile.delete();
                 broadcastFailure(errorMsg != null ? errorMsg : "未捕获到画面（请确认授权后保持 App 在前台）");
             } else {

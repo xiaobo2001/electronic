@@ -235,6 +235,30 @@ public class RomanticDialogs {
                         .show();
         UiGuard.focusInput(dialog, input);
 
+        // 【修复】字体入口：写文字的地方顺手就能换字体。
+        // 菜单里那一项埋得深（要滚动才看得到），用户找不到就说"字体没法选"。
+        if (view instanceof android.view.ViewGroup) {
+            final android.view.ViewGroup root = (android.view.ViewGroup) view;
+            final com.google.android.material.button.MaterialButton fontBtn =
+                    new com.google.android.material.button.MaterialButton(ctx);
+            fontBtn.setText("✍ 字体：" + FontKit.NAMES[FontKit.current()]);
+            fontBtn.setTextColor(0xFFFFFFFF);
+            fontBtn.setTextSize(13f);
+            fontBtn.setCornerRadius(20);
+            fontBtn.setInsetTop(0);
+            fontBtn.setInsetBottom(0);
+            fontBtn.setAllCaps(false);
+            fontBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0x00000000));
+            fontBtn.setStrokeColor(android.content.res.ColorStateList.valueOf(0xFFFFD700));
+            fontBtn.setStrokeWidth(2);
+            fontBtn.setOnClickListener(v -> showFontPicker(() ->
+                    fontBtn.setText("✍ 字体：" + FontKit.NAMES[FontKit.current()])));
+            android.widget.LinearLayout.LayoutParams lp =
+                    new android.widget.LinearLayout.LayoutParams(-2, -2);
+            lp.topMargin = 12;
+            root.addView(fontBtn, 1, lp);
+        }
+
         view.findViewById(R.id.btn_confirm).setOnClickListener(v -> {
             String text = input.getText() == null ? "" : input.getText().toString().trim();
             if (text.isEmpty()) {
@@ -961,17 +985,29 @@ public class RomanticDialogs {
     // ==================== 文字烟花字体 ====================
 
     public void showFontPicker() {
-        new UiGuard.SafeBuilder(ctx)
+        showFontPicker(null);
+    }
+
+    /**
+     * 字体选择。
+     *
+     * @param after 选完的额外收尾（比如刷新入口按钮上的当前字体名），可为 null
+     */
+    public void showFontPicker(final Runnable after) {
+        androidx.appcompat.app.AlertDialog d = new UiGuard.SafeBuilder(ctx)
                 .setTitle("✍ 文字烟花的字体")
                 .setMessage("换了字体后，文字烟花会按你选的字形炸开（内置毛笔与圆体为开源字体）。")
-                .setSingleChoiceItems(FontKit.NAMES, FontKit.current(), (d, w) -> {
-                    d.dismiss();
+                .setSingleChoiceItems(FontKit.NAMES, FontKit.current(), (dlg, w) -> {
+                    dlg.dismiss();
                     FontKit.set(w);
                     cb.onFontPicked(w);
                     Toaster.showShort("字体：" + FontKit.NAMES[w]);
+                    if (after != null) after.run();
                 })
                 .setNegativeButton("取消", null)
                 .show();
+        // 弹不出来时给个回话，别让用户对着"点了没反应"干瞪眼
+        if (d == null) Toaster.showShort("弹窗没打开，请退出重进一次再试");
     }
 
     // ==================== 照片回忆墙 ====================
