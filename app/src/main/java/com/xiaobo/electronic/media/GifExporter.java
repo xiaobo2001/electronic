@@ -48,9 +48,14 @@ public class GifExporter {
             int gifH = Math.max(2, srcH * gifW / srcW);
 
             int[][] rgbFrames = new int[frames][];
+            int got = 0;
             for (int i = 0; i < frames; i++) {
                 long t = (long) ((double) clipMs * i / frames) * 1000; // μs
                 Bitmap bmp = retriever.getFrameAtTime(t, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                // 部分机型/编码只能给出非关键帧，退一档再要一次，别让整段导出空手而归
+                if (bmp == null) {
+                    bmp = retriever.getFrameAtTime(t, MediaMetadataRetriever.OPTION_CLOSEST);
+                }
                 if (bmp == null) continue;
                 Bitmap scaled = Bitmap.createScaledBitmap(bmp, gifW, gifH, true);
                 if (scaled != bmp) bmp.recycle();
@@ -58,7 +63,9 @@ public class GifExporter {
                 scaled.getPixels(px, 0, gifW, 0, 0, gifW, gifH);
                 scaled.recycle();
                 rgbFrames[i] = px;
+                got++;
             }
+            if (got < 2) return null;   // 抽不出帧就别产出废文件
 
             String her = "";
             try {
@@ -111,38 +118,78 @@ public class GifExporter {
         }
     }
 
-    /** 固定 6x7x6 调色板量化（红0-5×绿0-6×蓝0-5 + 32 灰阶，共 244 色 + 12 余量） */
-    private static final int[] PALETTE = buildPalette();
+    // ==================== 调色板 ====================
+    // 【修复崩溃】旧版按「6×7×6 + 32 灰阶」建表，实际 6×7×6=252，252+32=284 > 256，
+    // 静态初始化时 p[256] 直接越界 → ExceptionInInitializerError（线程 gif-export 必崩）。
+    // 且 nearest() 的灰阶只返回 252..255 四个槽，与建表的 32 个灰阶对不上，灰阶映射本来也是错的。
+    // 现改为 6×6×6=216 色 + 32 级灰阶 + 8 个保留槽，总容量严格等于 256。
+
+    /** 全局色表固定 256 色 */
     private static final int PALETTE_SIZE = 256;
+    /** 彩色立方每通道级数：6×6×6 = 216（网络安全色网格） */
+    private static final int LEVELS = 6;
+    private static final int COLOR_COUNT = LEVELS * LEVELS * LEVELS;   // 216
+    /** 灰阶：32 级，下标 216..247，剩下 8 个槽（248..255）填黑备用 */
+    private static final int GRAY_COUNT = 32;
+    private static final int GRAY_BASE = COLOR_COUNT;                  // 216
+
+    /** 8×8 Bayer 有序抖动矩阵（0..63）：夜空渐变在 256 色下必然出色带，抖动可打散 */
+    private static final int[] BAYER8 = {
+            0, 32, 8, 40, 2, 34, 10, 42,
+            48, 16, 56, 24, 50, 18, 58, 26,
+            12, 44, 4, 36, 14, 46, 6, 38,
+            60, 28, 52, 20, 62, 30, 54, 22,
+            3, 35, 11, 43, 1, 33, 9, 41,
+            51, 19, 59, 27, 49, 17, 57, 25,
+            15, 47, 7, 39, 13, 45, 5, 37,
+            63, 31, 55, 23, 61, 29, 53, 21,
+    };
+
+    private static final int[] PALETTE = buildPalette();
 
     private static int[] buildPalette() {
         int[] p = new int[PALETTE_SIZE];
         int idx = 0;
-        for (int r = 0; r < 6; r++) {
-            for (int g = 0; g < 7; g++) {
-                for (int b = 0; b < 6; b++) {
-                    p[idx++] = 0xFF000000 | ((r * 255 / 5) << 16) | ((g * 255 / 6) << 8) | (b * 255 / 5);
+        for (int r = 0; r < LEVELS; r++) {
+            for (int g = 0; g < LEVELS; g++) {
+                for (int b = 0; b < LEVELS; b++) {
+                    p[idx++] = 0xFF000000 | ((r * 255 / 5) << 16) | ((g * 255 / 5) << 8) | (b * 255 / 5);
                 }
             }
         }
-        for (int i = 0; i < 32; i++) {
-            int v = i * 255 / 31;
+        for (int i = 0; i < GRAY_COUNT; i++) {
+            int v = i * 255 / (GRAY_COUNT - 1);
             p[idx++] = 0xFF000000 | (v << 16) | (v << 8) | v;
         }
         while (idx < PALETTE_SIZE) p[idx++] = 0xFF000000;
         return p;
     }
 
-    private static int nearest(int argb) {
+    private static int clamp(int v) {
+        return v < 0 ? 0 : (v > 255 ? 255 : v);
+    }
+
+    /** 取最近色索引；x/y 用于查抖动矩阵，同一像素位置每帧抖动图案一致，避免帧间闪烁 */
+    private static int nearest(int argb, int x, int y) {
         int a = (argb >>> 24) & 0xFF;
         if (a < 32) return 0;
         int r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
-        if (r == g && g == b) { // 灰阶
-            int gi = (r * 31 + 128) / 255;
-            return 252 + Math.min(3, gi * 32 / 256);
+
+        if (r == g && g == b) { // 纯灰阶：走 32 级灰阶表，比彩色立方细腻得多
+            int d = (BAYER8[(y & 7) << 3 | (x & 7)] - 32) * 3 / 4;
+            int gi = (clamp(r + d) * (GRAY_COUNT - 1) + 128) / 255;
+            if (gi > GRAY_COUNT - 1) gi = GRAY_COUNT - 1;
+            return GRAY_BASE + gi;
         }
-        int ri = (r * 5 + 128) / 255, gi2 = (g * 6 + 128) / 255, bi = (b * 5 + 128) / 255;
-        return (ri * 7 + gi2) * 6 + bi;
+
+        int d = (BAYER8[(y & 7) << 3 | (x & 7)] - 32) * 3 / 4;   // 约 ±24 ≈ 半个量化步长
+        int ri = (clamp(r + d) * (LEVELS - 1) + 128) / 255;
+        int gi2 = (clamp(g + d) * (LEVELS - 1) + 128) / 255;
+        int bi = (clamp(b + d) * (LEVELS - 1) + 128) / 255;
+        if (ri > LEVELS - 1) ri = LEVELS - 1;
+        if (gi2 > LEVELS - 1) gi2 = LEVELS - 1;
+        if (bi > LEVELS - 1) bi = LEVELS - 1;
+        return (ri * LEVELS + gi2) * LEVELS + bi;
     }
 
     /** GIF89a 写出 */
@@ -168,7 +215,12 @@ public class GifExporter {
             int written = 0;
             for (int[] frame : frames) {
                 if (frame == null) continue;
-                for (int i = 0; i < frame.length; i++) pixels[i] = (byte) nearest(frame[i]);
+                for (int y = 0; y < h; y++) {
+                    int row = y * w;
+                    for (int x = 0; x < w; x++) {
+                        pixels[row + x] = (byte) nearest(frame[row + x], x, y);
+                    }
+                }
                 // Graphic Control Extension
                 os.write(0x21); os.write(0xF9); os.write(4);
                 os.write(4); // disposal=1
@@ -190,61 +242,70 @@ public class GifExporter {
         }
     }
 
-    /** 标准 GIF LZW（可变码长，含 Clear/EOI） */
-    /** 标准 GIF89a LZW 编码（重写修复：字典未初始化导致首轮 NPE 崩溃） */
+    /** 哈希表容量：字典最多 4096 项，取 2 倍以上的 2 的幂，开放寻址基本不冲突 */
+    private static final int HASH_SIZE = 8192;
+    private static final int HASH_MASK = HASH_SIZE - 1;
+
+    /**
+     * 标准 GIF89a LZW 编码（可变码长，含 Clear / EOI）。
+     *
+     * <p><b>性能重写</b>：旧版拿 {@code String} 拼接当字典键（HashMap + StringBuilder），
+     * 一帧 320×568 ≈ 18 万像素、60 帧就是上千万次字符串拼接与哈希——慢到几十秒，还疯狂 GC。
+     * 现改为 int 键 {@code (prefix << 8) | suffix} + 开放寻址哈希表，全程零对象分配。
+     */
     private static void lzwEncode(OutputStream os, byte[] pixels, int minCodeSize) throws Exception {
         os.write(minCodeSize);
-        int clear = 1 << minCodeSize;
-        int eoi = clear + 1;
+        final int clear = 1 << minCodeSize;      // 256
+        final int eoi = clear + 1;               // 257
         BitWriter bits = new BitWriter(os);
-        java.util.HashMap<String, Integer> dict = new java.util.HashMap<>();
 
-        // 码长增长规则：初始 codeSize = minCodeSize+1 (9)
-        int[] codeSize = {minCodeSize + 1};
-        int[] nextCode = {eoi + 1};
-        java.util.ArrayList<Runnable> noop = null; // (占位避免未使用告警)
+        int codeSize = minCodeSize + 1;          // 初始 9 位
+        int nextCode = eoi + 1;                  // 第一个可用码 258
 
-        // 输出初始 Clear 码
-        bits.write(clear, codeSize[0]);
+        int[] hKey = new int[HASH_SIZE];
+        int[] hVal = new int[HASH_SIZE];
+        java.util.Arrays.fill(hKey, -1);
 
-        // cur：当前序列（字符串形式，每字节一个 char）。单字节序列的码 = 字节值本身（隐式，不入字典）
-        StringBuilder cur = new StringBuilder();
-        for (byte b : pixels) {
-            char c = (char) (b & 0xFF);
-            if (cur.length() == 0) {
-                cur.append(c);
+        bits.write(clear, codeSize);
+        if (pixels.length == 0) {
+            bits.write(eoi, codeSize);
+            bits.flush();
+            return;
+        }
+
+        int prefix = pixels[0] & 0xFF;
+        for (int i = 1; i < pixels.length; i++) {
+            int c = pixels[i] & 0xFF;
+            int key = (prefix << 8) | c;
+            int h = (key ^ (key >>> 8) ^ (key >>> 16)) & HASH_MASK;
+            int hit = -1;
+            while (hKey[h] >= 0) {
+                if (hKey[h] == key) { hit = hVal[h]; break; }
+                h = (h + 1) & HASH_MASK;
+            }
+            if (hit >= 0) {
+                prefix = hit;                    // 序列仍可延长，继续吞下一个字节
                 continue;
             }
-            String cand = cur.toString() + c;
-            Integer hit = dict.get(cand);
-            if (hit != null) {
-                cur = new StringBuilder(cand);
-                continue;
-            }
-            // 输出当前序列的码
-            int outCode = (cur.length() == 1) ? (cur.charAt(0) & 0xFF) : dict.get(cur.toString());
-            bits.write(outCode, codeSize[0]);
-            // 新序列入字典（先增码长后存码，保证解码器同步）
-            if (nextCode[0] >= (1 << codeSize[0]) && codeSize[0] < 12) {
-                codeSize[0]++;
-            }
-            if (nextCode[0] < 4096) {
-                dict.put(cand, nextCode[0]);
-                nextCode[0]++;
+
+            bits.write(prefix, codeSize);
+            if (nextCode < 4096) {
+                hKey[h] = key;
+                hVal[h] = nextCode;
+                // 先增码长再自增，保证与解码器同步（旧版同样语义，保持不变）
+                if (nextCode >= (1 << codeSize) && codeSize < 12) codeSize++;
+                nextCode++;
             } else {
-                // 字典满：发 Clear 重置（符合标准 GIF 解码器语义）
-                bits.write(clear, codeSize[0]);
-                codeSize[0] = minCodeSize + 1;
-                nextCode[0] = eoi + 1;
-                dict.clear();
+                // 字典满：发 Clear 重置，符合标准 GIF 解码器语义
+                bits.write(clear, codeSize);
+                codeSize = minCodeSize + 1;
+                nextCode = eoi + 1;
+                java.util.Arrays.fill(hKey, -1);
             }
-            cur = new StringBuilder().append(c);
+            prefix = c;
         }
-        if (cur.length() > 0) {
-            int outCode = (cur.length() == 1) ? (cur.charAt(0) & 0xFF) : dict.get(cur.toString());
-            bits.write(outCode, codeSize[0]);
-        }
-        bits.write(eoi, codeSize[0]);
+        bits.write(prefix, codeSize);
+        bits.write(eoi, codeSize);
         bits.flush();
     }
 

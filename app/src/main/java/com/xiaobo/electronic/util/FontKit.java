@@ -89,6 +89,11 @@ public final class FontKit {
     /**
      * 把文字渲染成烟花可用的形状位图（透明底 + 描边发光）。
      *
+     * <p><b>为什么字会发虚、断笔</b>：库对 CUSTOM 位图按 26×26 固定网格采样
+     * （{@code step = size/26}），采样点落在透明区就直接跳过。笔画窄于一个采样步长时，
+     * 大量采样点打空，出来的字就是几个散点——和手写签名烟花当初的毛病是同一个。
+     * 所以这里做两件事：把笔画描粗到至少一个网格宽，再把抗锯齿的半透明边缘抬成实心。
+     *
      * @param text    支持 \n 多行
      * @param maxPx   位图最大边长，超出就整体缩字号（宁可字小也不截断）
      */
@@ -96,6 +101,9 @@ public final class FontKit {
         if (text == null || text.trim().isEmpty()) return null;
         String[] lines = text.split("\n");
         Typeface tf = typeface(ctx, index);
+
+        // 库固定 26×26 采样网格，笔画至少要有一个网格那么宽才不会被漏采
+        final float step = maxPx / 26f;
 
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setTypeface(tf);
@@ -110,29 +118,59 @@ public final class FontKit {
             p.getTextBounds(s, 0, s.length(), bounds);
             widest = Math.max(widest, bounds.width());
         }
-        if (widest > maxPx * 0.9f) size *= (maxPx * 0.9f) / widest;
-        if (size < 24f) size = 24f;
-
+        if (widest > maxPx * 0.96f) size *= (maxPx * 0.96f) / widest;
+        if (size < 28f) size = 28f;
         p.setTextSize(size);
+
+        // 【修复】缩完字号必须用新字号重新量宽，旧实现拿 160px 下的宽度算画布，
+        // 画布偏大、字占比偏小，笔画在网格里更细，字自然更虚
+        widest = 0f;
+        for (String s : lines) {
+            widest = Math.max(widest, p.measureText(s));
+        }
+
         Paint.FontMetrics fm = p.getFontMetrics();
-        float lineH = (fm.descent - fm.ascent) * 1.25f;
-        int w = (int) Math.min(maxPx, widest + size * 0.3f);
-        int h = (int) Math.min(maxPx, lineH * lines.length + size * 0.4f);
+        float lineH = (fm.descent - fm.ascent) * 1.15f;
+        int w = (int) Math.min(maxPx, widest + size * 0.28f);
+        int h = (int) Math.min(maxPx, lineH * lines.length + size * 0.32f);
         if (w <= 0 || h <= 0) return null;
 
         Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bmp);
-        // 先画一层光晕：夜空里纯色字会被烟花吃掉，有光晕才立得住
-        p.setShadowLayer(size * 0.25f, 0f, 0f, 0xFFFFFFFF);
+        p.setShadowLayer(size * 0.22f, 0f, 0f, 0xFFFFFFFF);   // 夜空里纯色字会被烟花吃掉
         p.setColor(0xFFFFFFFF);
-        p.setStyle(Paint.Style.FILL);
-        float y = -fm.ascent + size * 0.2f;
+
+        float y = -fm.ascent + size * 0.16f;
         for (String s : lines) {
             float lw = p.measureText(s);
-            c.drawText(s, (w - lw) / 2f, y, p);
+            float x = (w - lw) / 2f;
+            p.setStyle(Paint.Style.FILL);
+            c.drawText(s, x, y, p);
+            // 加粗：描边宽度对齐一个采样步长，保证每个笔画都能被网格命中
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeWidth(Math.max(2f, step * 0.85f));
+            c.drawText(s, x, y, p);
             y += lineH;
         }
+        solidify(bmp, 96);
         return bmp;
+    }
+
+    /**
+     * 把位图二值化：抗锯齿边缘和光晕都是半透明，采样时会被当成"空白"漏掉，
+     * 抬成实心后笔画才连得起来。同时把低于阈值的光晕清干净，免得字的周围糊一圈散点。
+     */
+    private static void solidify(Bitmap bmp, int alphaThreshold) {
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        int[] px = new int[w * h];
+        bmp.getPixels(px, 0, w, 0, 0, w, h);
+        for (int i = 0; i < px.length; i++) {
+            int a = (px[i] >>> 24) & 0xFF;
+            px[i] = (a >= alphaThreshold) ? 0xFFFFFFFF : 0x00000000;
+        }
+        bmp.setPixels(px, 0, w, 0, 0, w, h);
     }
 
     /** 位图转烟花配置（与签名烟花一致：CUSTOM 采样）。 */
