@@ -1244,6 +1244,8 @@ public class RomanticDialogs {
         View v = LayoutInflater.from(ctx).inflate(R.layout.dialog_quiz, null);
         ((TextView) v.findViewById(R.id.tv_quiz_progress))
                 .setText("第 " + (idx + 1) + " / " + qs.size() + " 题");
+        // 【修复】题干必须显式绑定，否则界面上只剩布局里的占位文字"题目"
+        ((TextView) v.findViewById(R.id.tv_quiz_question)).setText(q.text);
 
         final int[] optIds = {R.id.btn_opt_0, R.id.btn_opt_1, R.id.btn_opt_2, R.id.btn_opt_3};
         final com.google.android.material.button.MaterialButton[] opts =

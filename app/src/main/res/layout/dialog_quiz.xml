@@ -32,7 +32,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:lineSpacingExtra="4dp"
-        android:text="题目"
         android:textColor="#FFFFFFFF"
         android:textSize="18sp"
         android:textStyle="bold" />
