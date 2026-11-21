@@ -49,17 +49,37 @@ public final class AnniversaryStore {
     }
 
     public static void add(String label, String lines) {
+        add(new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
+                .format(new java.util.Date()), label, lines);
+    }
+
+    /**
+     * 手动新增：允许指定日期（生日、在一起的那天等）。
+     *
+     * @param date yyyy-MM-dd；格式不对直接拒绝，避免存进一条永远算不出天数的脏数据
+     * @return 是否写入成功
+     */
+    public static boolean add(String date, String label, String lines) {
+        if (date == null || !date.matches("\\d{4}-\\d{2}-\\d{2}")) return false;
+        try {
+            String[] p = date.split("-");
+            int mo = Integer.parseInt(p[1]), da = Integer.parseInt(p[2]);
+            if (mo < 1 || mo > 12 || da < 1 || da > 31) return false;
+        } catch (Exception e) {
+            return false;
+        }
         try {
             org.json.JSONArray arr = new org.json.JSONArray(
                     com.tencent.mmkv.MMKV.defaultMMKV().decodeString(KEY, "[]"));
             org.json.JSONObject o = new org.json.JSONObject();
-            o.put("date", new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
-                    .format(new java.util.Date()));
-            o.put("label", label);
-            o.put("lines", lines);
+            o.put("date", date);
+            o.put("label", label == null ? "" : label);
+            o.put("lines", lines == null ? "" : lines);
             arr.put(o);
             com.tencent.mmkv.MMKV.defaultMMKV().encode(KEY, arr.toString());
-        } catch (Exception ignored) {
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 

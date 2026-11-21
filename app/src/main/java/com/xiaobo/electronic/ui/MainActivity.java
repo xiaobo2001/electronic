@@ -4147,40 +4147,45 @@ public class MainActivity extends AppCompatActivity {
         // 【架构】数据读取交给 AnniversaryStore
         final java.util.List<AnniversaryStore.Entry> list = AnniversaryStore.load();
         if (list.isEmpty()) {
-            // 旧版只弹一句 Toast，一闪而过，用户会以为"点了没反应"。
-            // 改成说明 + 明确下一步：直接去演一场，成功后自动记下这一天。
+            // 空态也给两条出路：手动添加，或去演一场让它自动记下
             new UiGuard.SafeBuilder(this)
                     .setTitle("📅 还没有纪念日")
-                    .setMessage("完整演一场告白、她点「我愿意」之后，这一天会自动记下来，\n"
-                            + "以后每年都能在这里重演那天的烟花和台词。")
-                    .setPositiveButton("去演一场", (d, w) -> showRomanticDialog())
+                    .setMessage("可以手动加一条（生日、在一起的日子），\n"
+                            + "也可以完整演一场告白——她点「我愿意」后，这一天会自动记下来。")
+                    .setPositiveButton("手动添加", (d, w) -> dialogs.showAddAnniversaryDialog())
+                    .setNeutralButton("去演一场", (d, w) -> showRomanticDialog())
                     .setNegativeButton("知道了", null)
                     .show();
             return;
         }
         // 末位放"提醒设置/清空"条目而非底部按钮：纪念日列表可以很长，横屏下 AlertDialog
         // 系统按钮栏会被挤压成 0 高度，点了没反应
-        final String[] items = new String[list.size() + 2];
-        final String[] linesArr = new String[list.size() + 2];
+        final String[] items = new String[list.size() + 3];
+        final String[] linesArr = new String[list.size() + 3];
+        // 第 0 项固定是"新增"，索引整体后移一位
+        items[0] = "➕ 新增纪念日（生日 / 在一起的日子）";
+        linesArr[0] = null;
         for (int i = 0; i < list.size(); i++) {
             AnniversaryStore.Entry e = list.get(i);
             // 【新增】显示距今天数与周年：纪念日只有日期没有"过了多久"，仪式感就少了一半
-            items[i] = e.date + "  " + e.label + "  · " + AnniversaryStore.daysLabel(e.date);
-            linesArr[i] = e.lines;
+            items[i + 1] = e.date + "  " + e.label + "  · " + AnniversaryStore.daysLabel(e.date);
+            linesArr[i + 1] = e.lines;
         }
-        items[list.size()] = "⏰ 提醒设置（当前：" + AnniversaryReminder.summary() + "）";
-        linesArr[list.size()] = null;
-        items[list.size() + 1] = "🗑 清空全部纪念日";
-        linesArr[list.size() + 1] = null;
+        items[list.size() + 1] = "⏰ 提醒设置（当前：" + AnniversaryReminder.summary() + "）";
+        items[list.size() + 2] = "🗑 清空全部纪念日";
 
         new UiGuard.SafeBuilder(this)
                 .setTitle("纪念日（点击条目重演当天的演出）")
                 .setItems(items, (d, w) -> {
-                    if (w == list.size()) {
+                    if (w == 0) {
+                        dialogs.showAddAnniversaryDialog();
+                        return;
+                    }
+                    if (w == list.size() + 1) {
                         showAnniversaryReminderPicker();
                         return;
                     }
-                    if (w > list.size()) {
+                    if (w > list.size() + 1) {
                         AnniversaryStore.clearAll();
                         AnniversaryReminder.reschedule(this);
                         Toaster.showShort("已清空纪念日");

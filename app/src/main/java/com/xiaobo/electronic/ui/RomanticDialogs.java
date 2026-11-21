@@ -1175,6 +1175,47 @@ public class RomanticDialogs {
         });
     }
 
+    // ==================== 纪念日：手动新增 ====================
+
+    /**
+     * 手动新增纪念日：日期选择器 + 名称。
+     *
+     * <p>之前纪念日只能由"她点我愿意"自动记录，生日、在一起的日子都加不进来。
+     * 这里允许用户自选日期，保存后立刻重排提醒。
+     */
+    public void showAddAnniversaryDialog() {
+        View v = LayoutInflater.from(ctx).inflate(R.layout.dialog_add_anniversary, null);
+        final DatePicker dp = v.findViewById(R.id.dp_anniv);
+        final TextInputEditText etLabel = v.findViewById(R.id.et_anniv_label);
+        AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
+                .setTitle("➕ 新增纪念日")
+                .setView(v)
+                .show();
+        if (dlg == null) return;
+        // 弹窗展示后再 init：spinner 模式的 DatePicker 在部分 ROM 上需要已 attach
+        java.util.Calendar now = java.util.Calendar.getInstance();
+        dp.init(now.get(java.util.Calendar.YEAR), now.get(java.util.Calendar.MONTH),
+                now.get(java.util.Calendar.DAY_OF_MONTH), null);
+        v.findViewById(R.id.btn_anniv_cancel).setOnClickListener(z -> dlg.dismiss());
+        v.findViewById(R.id.btn_anniv_save).setOnClickListener(z -> {
+            String label = etLabel.getText() == null ? "" : etLabel.getText().toString().trim();
+            if (label.isEmpty()) {
+                Toaster.showShort("给它起个名字吧，比如「她的生日」");
+                etLabel.requestFocus();
+                return;
+            }
+            String date = String.format(java.util.Locale.CHINA, "%04d-%02d-%02d",
+                    dp.getYear(), dp.getMonth() + 1, dp.getDayOfMonth());
+            if (!com.xiaobo.electronic.data.AnniversaryStore.add(date, label, "遇见你真好")) {
+                Toaster.showShort("日期格式不对，换一天试试");
+                return;
+            }
+            com.xiaobo.electronic.data.AnniversaryReminder.reschedule(ctx);
+            dlg.dismiss();
+            Toaster.showShort("已添加：" + label + " · " + date);
+        });
+    }
+
     // ==================== 真人语音留声 ====================
 
     /**
