@@ -4147,7 +4147,15 @@ public class MainActivity extends AppCompatActivity {
         // 【架构】数据读取交给 AnniversaryStore
         final java.util.List<AnniversaryStore.Entry> list = AnniversaryStore.load();
         if (list.isEmpty()) {
-            Toaster.showShort("还没有纪念日，表白成功后会自动记录");
+            // 旧版只弹一句 Toast，一闪而过，用户会以为"点了没反应"。
+            // 改成说明 + 明确下一步：直接去演一场，成功后自动记下这一天。
+            new UiGuard.SafeBuilder(this)
+                    .setTitle("📅 还没有纪念日")
+                    .setMessage("完整演一场告白、她点「我愿意」之后，这一天会自动记下来，\n"
+                            + "以后每年都能在这里重演那天的烟花和台词。")
+                    .setPositiveButton("去演一场", (d, w) -> showRomanticDialog())
+                    .setNegativeButton("知道了", null)
+                    .show();
             return;
         }
         // 末位放"提醒设置/清空"条目而非底部按钮：纪念日列表可以很长，横屏下 AlertDialog
