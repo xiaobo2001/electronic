@@ -237,6 +237,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean lanternTapMode;   // 孔明灯模式：点击放灯
     private boolean rhythmOn;         // 音乐律动
     private ActivityResultLauncher<String> micPermissionLauncher;
+    /** 导入文字烟花字体：选一个 ttf/otf */
+    private ActivityResultLauncher<String[]> fontImportLauncher;
     // 星空后台零绘制：onPause 时停掉无限循环动画避免后台空耗 CPU；
     // 记录暂停时是否可见，回前台仅恢复原可见的那份，
     // 保持“退出浪漫模式后星空保持隐藏”的既有表现不变
@@ -740,6 +742,18 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onQuizFinished(int correct, int total) {
                 celebrateQuiz(correct, total);
+            }
+
+            @Override
+            public void onImportFont() {
+                try {
+                    // 各 ROM 对 ttf 的 MIME 判定不一致（有的报 octet-stream），
+                    // 放宽到 */*，靠导入时的解析校验兜底
+                    fontImportLauncher.launch(new String[]{
+                            "font/*", "application/x-font-ttf", "application/octet-stream", "*/*"});
+                } catch (Exception e) {
+                    Toaster.showShort("这台设备打不开文件选择器");
+                }
             }
         });
 
@@ -3019,6 +3033,24 @@ public class MainActivity extends AppCompatActivity {
                 Toaster.showShort("背景音乐已更新，将在下次浪漫模式生效");
             }
         });
+        // 字体导入：复制 + 解析都要读文件，放后台线程，别卡住弹窗
+        fontImportLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
+            if (uri == null) return;
+            Toaster.showShort("正在导入字体…");
+            new Thread(() -> {
+                String name = com.xiaobo.electronic.util.FontKit.importFont(MainActivity.this, uri);
+                mainHandler.post(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (name == null) {
+                        Toaster.showShort("导入失败：请确认是 .ttf / .otf 字体文件");
+                        return;
+                    }
+                    Toaster.showShort("已导入：" + name + "，选它就能用");
+                    // 直接重新打开字体列表，导入的那款就在最下面
+                    dialogs.showFontPicker();
+                });
+            }, "font-import").start();
+        });
         micPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
             if (isGranted) {
                 // 离线识别流程优先：模型就绪后走本地识别，不再依赖系统识别器
@@ -4072,7 +4104,7 @@ public class MainActivity extends AppCompatActivity {
                 SignatureStore.has(this) ? "已有签名" : "还没写");
         setMenuValue(menuView, R.id.tv_photos, "🖼 照片回忆墙",
                 photoWall != null && photoWall.isRunning() ? "正在播放" : "选照片");
-        setMenuValue(menuView, R.id.tv_font, "✍ 文字烟花字体", FontKit.NAMES[FontKit.current()]);
+        setMenuValue(menuView, R.id.tv_font, "✍ 文字烟花字体", FontKit.labelAt(FontKit.current()));
         setMenuValue(menuView, R.id.tv_tuning, "🎛 烟花手感", FireworkTuning.summary());
         setMenuValue(menuView, R.id.tv_voice, "🎤 语音输入台词",
                 AsrModelStore.isReady(this) ? "离线识别 · 已就绪"

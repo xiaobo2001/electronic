@@ -119,6 +119,10 @@ public class RomanticDialogs {
         default void onFontPicked(int index) {
         }
 
+        /** 文字烟花：从手机里选一个 ttf / otf 导入 */
+        default void onImportFont() {
+        }
+
         /**
          * 烟花手感调参变化（重建烟花池后生效）。
          *
@@ -276,7 +280,7 @@ public class RomanticDialogs {
             final android.view.ViewGroup root = (android.view.ViewGroup) view;
             final com.google.android.material.button.MaterialButton fontBtn =
                     new com.google.android.material.button.MaterialButton(ctx);
-            fontBtn.setText("✍ 字体：" + FontKit.NAMES[FontKit.current()]);
+            fontBtn.setText("✍ 字体：" + FontKit.labelAt(FontKit.current()));
             fontBtn.setTextColor(0xFFFFFFFF);
             fontBtn.setTextSize(13f);
             fontBtn.setCornerRadius(20);
@@ -1018,17 +1022,21 @@ public class RomanticDialogs {
      * @param after 选完的额外收尾（比如刷新入口按钮上的当前字体名），可为 null
      */
     public void showFontPicker(final Runnable after) {
+        final int total = FontKit.total();
+        final String[] labels = new String[total];
+        for (int i = 0; i < total; i++) labels[i] = FontKit.labelAt(i);
         androidx.appcompat.app.AlertDialog d = new UiGuard.SafeBuilder(ctx)
                 .setTitle("✍ 文字烟花的字体")
-                .setMessage("换了字体后，文字烟花会按你选的字形炸开（内置毛笔与圆体为开源字体）。")
-                .setSingleChoiceItems(FontKit.NAMES, FontKit.current(), (dlg, w) -> {
+                .setSingleChoiceItems(labels, FontKit.current(), (dlg, w) -> {
                     dlg.dismiss();
                     FontKit.set(w);
                     cb.onFontPicked(w);
-                    Toaster.showShort("字体：" + FontKit.NAMES[w]);
+                    Toaster.showShort("字体：" + FontKit.labelAt(w));
                     if (after != null) after.run();
                 })
-                .setNegativeButton("取消", null)
+                // 字体不止内置那几款：手机里的 ttf/otf 也能导入
+                .setNeutralButton("📥 导入字体", (dlg, w) -> cb.onImportFont())
+                .setNegativeButton("关闭", null)
                 .show();
         // 弹不出来时给个回话，别让用户对着"点了没反应"干瞪眼
         if (d == null) Toaster.showShort("弹窗没打开，请退出重进一次再试");
