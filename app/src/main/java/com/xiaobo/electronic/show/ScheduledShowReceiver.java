@@ -1,6 +1,7 @@
 package com.xiaobo.electronic.show;
 
 import android.app.Notification;
+import androidx.core.app.NotificationCompat;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -64,7 +65,7 @@ public class ScheduledShowReceiver extends BroadcastReceiver {
         }
         PendingIntent pi = PendingIntent.getActivity(c, 3000, open, flags);
 
-        Notification n = new Notification.Builder(c, CHANNEL_ID)
+        Notification n = new NotificationCompat.Builder(c, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification_heart)
                 .setContentTitle("⏰ " + (name == null ? "定时演出" : name))
                 .setContentText("时间到了，点开为她放一场烟花")

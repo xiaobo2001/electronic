@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.provider.MediaStore;
 
 import com.google.zxing.BarcodeFormat;
@@ -15,6 +16,8 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.util.EnumMap;
 import java.util.Map;
@@ -59,32 +62,45 @@ public final class QrCodeUtil {
         }
     }
 
-    /** 存到相册（Pictures/烟花），返回 content Uri；失败返回 null。 */
+    /** 存到相册（Pictures/烟花），返回可直接分享的 Uri；失败返回 null。 */
     public static Uri saveToGallery(Context ctx, Bitmap bmp, String title) {
         if (bmp == null) return null;
         String name = (title == null || title.trim().isEmpty() ? "firework_qr" : title.trim())
                 .replaceAll("[\\\\/:*?\"<>|]", "_") + "_" + System.currentTimeMillis() + ".png";
-        ContentValues cv = new ContentValues();
-        cv.put(MediaStore.Images.Media.DISPLAY_NAME, name);
-        cv.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            cv.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/烟花");
-            cv.put(MediaStore.Images.Media.IS_PENDING, 1);
-        }
-        Uri uri = ctx.getContentResolver()
-                .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
-        if (uri == null) return null;
-        try (OutputStream os = ctx.getContentResolver().openOutputStream(uri)) {
-            if (os == null) return null;
-            bmp.compress(Bitmap.CompressFormat.PNG, 100, os);
+        try {
+            // Android 10+：分区存储，经 MediaStore 写公共相册
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues cv = new ContentValues();
+                cv.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+                cv.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                cv.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/烟花");
+                cv.put(MediaStore.Images.Media.IS_PENDING, 1);
+                Uri uri = ctx.getContentResolver()
+                        .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) return null;
+                try (OutputStream os = ctx.getContentResolver().openOutputStream(uri)) {
+                    if (os == null) return null;
+                    if (!bmp.compress(Bitmap.CompressFormat.PNG, 100, os)) return null;
+                }
+                ContentValues done = new ContentValues();
+                done.put(MediaStore.Images.Media.IS_PENDING, 0);
+                ctx.getContentResolver().update(uri, done, null, null);
+                return uri;
+            }
+
+            // Android 9 及以下：没有 WRITE_EXTERNAL_STORAGE（本应用不申请），
+            // 直接 insert 公共相册会抛 SecurityException；改写应用私有图片目录，
+            // 再用 FileProvider 暴露成可分享的 content Uri。
+            File dir = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "烟花");
+            if (!dir.exists() && !dir.mkdirs()) return null;
+            File out = new File(dir, name);
+            try (OutputStream os = new FileOutputStream(out)) {
+                if (!bmp.compress(Bitmap.CompressFormat.PNG, 100, os)) return null;
+            }
+            return androidx.core.content.FileProvider.getUriForFile(
+                    ctx, ctx.getPackageName() + ".fileprovider", out);
         } catch (Exception e) {
             return null;
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            cv.clear();
-            cv.put(MediaStore.Images.Media.IS_PENDING, 0);
-            ctx.getContentResolver().update(uri, cv, null, null);
-        }
-        return uri;
     }
 }

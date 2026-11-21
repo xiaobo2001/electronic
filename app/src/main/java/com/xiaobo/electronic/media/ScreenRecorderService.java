@@ -1,6 +1,7 @@
 package com.xiaobo.electronic.media;
 
 import android.app.Notification;
+import androidx.core.app.NotificationCompat;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
@@ -226,7 +227,7 @@ public class ScreenRecorderService extends Service {
                     NotificationManager.IMPORTANCE_LOW);
             nm.createNotificationChannel(ch);
         }
-        Notification n = new Notification.Builder(this, CHANNEL_ID)
+        Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("正在录制浪漫视频")
                 .setContentText("录制完成后自动保存")
                 .setSmallIcon(R.drawable.ic_heart_petal)

@@ -13,7 +13,7 @@ public final class AnniversaryCountdown {
     public static String oneLine(List<AnniversaryStore.Entry> entries, long now) {
         EntryHit hit = nearest(entries, now);
         if (hit == null) return null;
-        long days = (hit.nextMillis - now) / 86400000L;
+        long days = (hit.nextMillis - startOfDay(now)) / 86400000L;
         String label = hit.entry.label == null || hit.entry.label.trim().isEmpty()
                 ? "纪念日" : hit.entry.label;
         if (days <= 0) return label + " 就是今天 💗";
@@ -23,7 +23,18 @@ public final class AnniversaryCountdown {
     /** 距今天的天数（0=今天） */
     public static int days(List<AnniversaryStore.Entry> entries, long now) {
         EntryHit hit = nearest(entries, now);
-        return hit == null ? -1 : (int) ((hit.nextMillis - now) / 86400000L);
+        return hit == null ? -1 : (int) ((hit.nextMillis - startOfDay(now)) / 86400000L);
+    }
+
+    /** 当天零点：倒计时应按"日期"算，而不是按"此刻"算 */
+    private static long startOfDay(long millis) {
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(millis);
+        c.set(Calendar.HOUR_OF_DAY, 0);
+        c.set(Calendar.MINUTE, 0);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
+        return c.getTimeInMillis();
     }
 
     /** 命中的纪念日标题 */
@@ -75,18 +86,22 @@ public final class AnniversaryCountdown {
         c.setTimeInMillis(original);
         int month = c.get(Calendar.MONTH);
         int day = c.get(Calendar.DAY_OF_MONTH);
-        // 从"今年"起算（不是纪念日的年份），否则老纪念日会滚到 2021 这种过去年份
-        Calendar current = Calendar.getInstance();
-        current.setTimeInMillis(now);
-        int thisYear = current.get(Calendar.YEAR);
+        // 按"日期"比较：今天下午看今天的纪念日，也应算"就是今天"，
+        // 旧版拿此刻比零点会把它滚到明年，显示"还有 365 天"。
+        Calendar today = Calendar.getInstance();
+        today.setTimeInMillis(now);
+        today.set(Calendar.HOUR_OF_DAY, 0);
+        today.set(Calendar.MINUTE, 0);
+        today.set(Calendar.SECOND, 0);
+        today.set(Calendar.MILLISECOND, 0);
+
         Calendar next = Calendar.getInstance();
         next.clear();
-        next.set(thisYear, month, day);
-        long t = next.getTimeInMillis();
-        if (t < now) {
-            next.set(thisYear + 1, month, day);
-            t = next.getTimeInMillis();
+        next.set(today.get(Calendar.YEAR), month, day);
+        if (next.before(today)) {
+            next.clear();
+            next.set(today.get(Calendar.YEAR) + 1, month, day);
         }
-        return t;
+        return next.getTimeInMillis();
     }
 }

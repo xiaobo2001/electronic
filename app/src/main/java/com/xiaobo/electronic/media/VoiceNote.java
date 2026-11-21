@@ -63,6 +63,15 @@ public final class VoiceNote {
         }
     }
 
+    /** 缓存过的时长：演出每句都会问，别在主线程反复 prepare 一个 MediaPlayer */
+    private static long cachedDurationMs = -1;
+
+    public static long durationMsCached(Context ctx) {
+        if (cachedDurationMs >= 0) return cachedDurationMs;
+        cachedDurationMs = Math.max(0, durationMs(ctx));
+        return cachedDurationMs;
+    }
+
     // ==================== 录音 ====================
 
     private static MediaRecorder recorder;
@@ -82,6 +91,7 @@ public final class VoiceNote {
             r.prepare();
             r.start();
             recorder = r;
+            cachedDurationMs = -1;   // 新录音，旧时长作废
             if (cb != null) {
                 final Handler ui = new Handler(Looper.getMainLooper());
                 ui.post(() -> cb.onState("正在录音，说点真心话…（最多 30 秒）"));
@@ -126,6 +136,7 @@ public final class VoiceNote {
     /** 删除录音 */
     public static boolean delete(Context ctx) {
         File f = file(ctx);
+        cachedDurationMs = -1;
         return f.isFile() && f.delete();
     }
 

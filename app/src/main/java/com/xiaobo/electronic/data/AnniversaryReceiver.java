@@ -1,6 +1,7 @@
 package com.xiaobo.electronic.data;
 
 import android.app.Notification;
+import androidx.core.app.NotificationCompat;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -74,7 +75,7 @@ public class AnniversaryReceiver extends BroadcastReceiver {
             }
             PendingIntent pi = PendingIntent.getActivity(c, 1000 + i, open, flags);
 
-            Notification n = new Notification.Builder(c, CHANNEL_ID)
+            Notification n = new NotificationCompat.Builder(c, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_notification_heart)
                     .setContentTitle(title)
                     .setContentText(text)

@@ -97,6 +97,13 @@ public final class OfflineAsr {
     }
 
     /** 开始录音识别 */
+    /**
+     * 开始录音识别。
+     *
+     * <p>权限由调用方 {@code ensureMicPermission} 保证；这里仍用 try-catch 兜住
+     * 运行中被撤销权限的 SecurityException，避免直接崩掉。
+     */
+    @android.annotation.SuppressLint("MissingPermission")
     public void start() {
         if (recognizer == null) {
             postError("语音模型还没准备好");

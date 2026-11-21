@@ -10,6 +10,7 @@ import android.graphics.Paint;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.media.MediaScannerConnection;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -204,17 +205,38 @@ public class MementoCard {
     private static String save(Context ctx, Bitmap bmp) {
         try {
             String name = "card_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".png";
-            ContentValues cv = new ContentValues();
-            cv.put(MediaStore.Images.Media.DISPLAY_NAME, name);
-            cv.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
-            cv.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/RomanticFirework");
-            Uri uri = ctx.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
-            if (uri == null) return null;
-            java.io.OutputStream os = ctx.getContentResolver().openOutputStream(uri);
-            bmp.compress(Bitmap.CompressFormat.PNG, 100, os);
-            if (os != null) os.close();
-            return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-                    + "/RomanticFirework/" + name;
+            // Android 10+：分区存储写公共相册；写入期间置 IS_PENDING，避免相册扫到半张图
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues cv = new ContentValues();
+                cv.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+                cv.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                cv.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/RomanticFirework");
+                cv.put(MediaStore.Images.Media.IS_PENDING, 1);
+                Uri uri = ctx.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) return null;
+                try (java.io.OutputStream os = ctx.getContentResolver().openOutputStream(uri)) {
+                    if (os == null) return null;
+                    if (!bmp.compress(Bitmap.CompressFormat.PNG, 100, os)) return null;
+                }
+                ContentValues done = new ContentValues();
+                done.put(MediaStore.Images.Media.IS_PENDING, 0);
+                ctx.getContentResolver().update(uri, done, null, null);
+                return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                        + "/RomanticFirework/" + name;
+            }
+
+            // Android 9 及以下：没有 WRITE_EXTERNAL_STORAGE（本应用不申请），
+            // 写公共相册会失败；落到应用私有图片目录，无需任何权限。
+            java.io.File dir = new java.io.File(
+                    ctx.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "RomanticFirework");
+            if (!dir.exists() && !dir.mkdirs()) return null;
+            java.io.File out = new java.io.File(dir, name);
+            try (java.io.OutputStream os = new java.io.FileOutputStream(out)) {
+                if (!bmp.compress(Bitmap.CompressFormat.PNG, 100, os)) return null;
+            }
+            MediaScannerConnection.scanFile(ctx, new String[]{out.getAbsolutePath()},
+                    new String[]{"image/png"}, null);
+            return out.getAbsolutePath();
         } catch (Exception e) {
             e.printStackTrace();
             return null;

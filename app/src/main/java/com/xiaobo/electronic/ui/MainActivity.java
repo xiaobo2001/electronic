@@ -1553,14 +1553,21 @@ public class MainActivity extends AppCompatActivity {
         String line = romanticLines.get(lineIdx);
         // 【真人留声】第一句若有用户原声，播他的声音代替合成音；其余句子仍走 TTS。
         // 只替换第一句：一段录音配多句台词会变成"一句话念三遍"，反而尴尬。
+        final long dwell;
         if (lineIdx == 0 && VoiceNote.exists(this)) {
             speech.stop();
             duckBgm(true);
+            long voiceMs = VoiceNote.durationMsCached(this);
+            // 原声往往比文字默认停留更久：按录音长度兜底，
+            // 否则会出现"字已经翻到下一句、原声还在念上一句"的错位
+            dwell = Math.max(lineDwellMs(line, lineIdx, romanticLines.size()),
+                    voiceMs > 0 ? voiceMs + 600 : 0);
             VoiceNote.play(this, null,
                     () -> duckBgm(true),
                     () -> duckBgm(false),
                     null);
         } else {
+            dwell = lineDwellMs(line, lineIdx, romanticLines.size());
             speech.speak(line); // 【#18】TTS 同步朗读台词
         }
         // 【随机特效#20】每句台词随机入场（像 PPT 翻页动画：聚拢/飞入/落下/升起/淡入/波浪/弹跳）
@@ -1596,7 +1603,7 @@ public class MainActivity extends AppCompatActivity {
                         postRomanticCue(() -> playConfessionLines(lineIdx + 1), 350);
                     });
                 }
-            }, lineDwellMs(line, lineIdx, romanticLines.size()));
+            }, dwell);
         });
     }
 
@@ -3095,11 +3102,9 @@ public class MainActivity extends AppCompatActivity {
         IntentFilter f = new IntentFilter();
         f.addAction(ScreenRecorderService.ACTION_STOPPED);
         f.addAction(ScreenRecorderService.ACTION_FAILED);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(recordStoppedReceiver, f, Context.RECEIVER_EXPORTED);
-        } else {
-            registerReceiver(recordStoppedReceiver, f);
-        }
+        // 录屏结果只在应用内部传递：用 NOT_EXPORTED，别让外部应用伪造"录制完成"
+        androidx.core.content.ContextCompat.registerReceiver(this, recordStoppedReceiver, f,
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void grantPersistable(android.net.Uri uri) {

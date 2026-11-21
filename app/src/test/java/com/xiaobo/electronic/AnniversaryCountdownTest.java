@@ -54,6 +54,30 @@ public class AnniversaryCountdownTest {
         assertTrue(AnniversaryCountdown.oneLine(list, today).contains("就是今天"));
     }
 
+    /** 回归：当天晚上看，不能因为"零点已过"就滚到明年显示 365 天 */
+    @Test
+    public void sameDayLateEvening_stillToday() {
+        List<AnniversaryStore.Entry> list = new ArrayList<>();
+        list.add(new AnniversaryStore.Entry(ymd(2026, 5, 20), "就是今天", ""));
+        Calendar late = Calendar.getInstance();
+        late.clear();
+        late.set(2026, 4, 20, 23, 30);
+        long now = late.getTimeInMillis();
+        assertEquals(0, AnniversaryCountdown.days(list, now));
+        assertTrue(AnniversaryCountdown.oneLine(list, now).contains("就是今天"));
+    }
+
+    /** 回归：明天的纪念日，今晚看应该是 1 天，而不是 0 天 */
+    @Test
+    public void tomorrowEvening_isOneDay() {
+        List<AnniversaryStore.Entry> list = new ArrayList<>();
+        list.add(new AnniversaryStore.Entry(ymd(2026, 5, 21), "明天", ""));
+        Calendar tonight = Calendar.getInstance();
+        tonight.clear();
+        tonight.set(2026, 4, 20, 22, 0);
+        assertEquals(1, AnniversaryCountdown.days(list, tonight.getTimeInMillis()));
+    }
+
     @Test
     public void nearest_wins() {
         List<AnniversaryStore.Entry> list = new ArrayList<>();
