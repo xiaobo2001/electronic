@@ -83,7 +83,7 @@ public final class OfflineAsr {
             cfg.setDecodingMethod("greedy_search");
 
             // 第一个参数传 null：AssetManager 为空时走 newFromFile，按文件路径加载，
-            // 这样放在 filesDir 的下载模型才能用（assets 是只读的，写不进去）
+            // 这样放在 filesDir 解压出的模型才能用（assets 是只读的，写不进去）
             recognizer = new OnlineRecognizer(null, cfg);
             return true;
         } catch (Throwable t) {

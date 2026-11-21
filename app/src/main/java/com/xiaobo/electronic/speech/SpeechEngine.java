@@ -46,11 +46,11 @@ public class SpeechEngine {
     private static final String KEY_SPEECH_MODE = "speech_mode2";
     /**
      * 上次启动时检测到的"系统引擎能否读中文"：-1 未知 / 0 不能 / 1 能。
-     * 存下来是为了不必每次冷启动都弹一次下载询问——用户已经说过"暂时不用"的话，
+     * 存下来是为了不必每次冷启动都弹一次安装询问——用户已经说过"暂时不用"的话，
      * 再问就是骚扰。系统装了语音包后下一次检测会把它刷回 1。
      */
     private static final String KEY_SYS_ZH = "tts_sys_zh";
-    /** 用户在"要不要下载离线音色"弹窗里选过"暂时不用" */
+    /** 用户在"要不要安装离线音色"弹窗里选过"暂时不用" */
     private static final String KEY_TTS_PROMPT_OFF = "tts_prompt_off";
     /** 告白台词偏慢更打动人；系统引擎默认 1.0 偏快 */
     private static final float SPEECH_RATE = 0.85f;
@@ -133,7 +133,7 @@ public class SpeechEngine {
         }
     }
 
-    /** 用户选过"暂时不用"：之后启动不再自动问，但菜单里仍可主动下载 */
+    /** 用户选过"暂时不用"：之后启动不再自动问，但菜单里仍可主动安装 */
     public static boolean ttsPromptDisabled() {
         try {
             return MMKV.defaultMMKV().decodeBool(KEY_TTS_PROMPT_OFF, false);
@@ -149,7 +149,7 @@ public class SpeechEngine {
         }
     }
 
-    /** 离线音色模型是否已下载（当前选中的音色） */
+    /** 离线音色模型是否已安装（当前选中的音色） */
     public boolean isLocalModelReady() {
         return TtsModelStore.isReady(appContext, TtsVoice.current());
     }
@@ -175,7 +175,7 @@ public class SpeechEngine {
         return localTts != null ? localTts.numSpeakers() : 0;
     }
 
-    /** 模型下载/删除/换音色后重建本地引擎：否则 failed 标记会一直把这路堵死 */
+    /** 模型安装/删除/换音色后重建本地引擎：否则 failed 标记会一直把这路堵死 */
     public void resetLocal() {
         if (localTts != null) {
             try {
@@ -239,7 +239,7 @@ public class SpeechEngine {
                 return "已关闭";
             case MODE_LOCAL:
                 if (localFailed) {
-                    return localTts != null && localTts.isModelMissing() ? "本地音色未下载" : "本地不可用";
+                    return localTts != null && localTts.isModelMissing() ? "本地音色未安装" : "本地不可用";
                 }
                 return localTts != null && localTts.isReady() ? localLabel() : localLabel() + "（准备中）";
             case MODE_SYSTEM:
@@ -248,7 +248,7 @@ public class SpeechEngine {
                 // 自动档：显示真正会发声的那个
                 if (sysReady) return "系统引擎";
                 if (sysFailed) {
-                    if (!isLocalModelReady()) return "需下载离线音色";
+                    if (!isLocalModelReady()) return "需安装离线音色";
                     return localTts != null && localTts.isReady() ? localLabel() + "（系统不可用）"
                             : localLabel() + "（准备中）";
                 }
@@ -378,10 +378,10 @@ public class SpeechEngine {
                 }
                 if (!warnedNoChinese) {
                     warnedNoChinese = true;
-                    // 区分"没下载"和"坏了"：前者是可以一键补救的，得说清去哪儿补
+                    // 区分"没安装"和"坏了"：前者是可以一键补救的，得说清去哪儿补
                     boolean missing = localTts != null && localTts.isModelMissing();
                     Toaster.showShort(missing
-                            ? "未下载离线音色，可在「台词朗读」里下载"
+                            ? "未安装离线音色，可在「台词朗读」里安装"
                             : "台词朗读不可用，演出继续");
                 }
             }

@@ -17,11 +17,11 @@ local.properties
 .temp/
 app/release/
 
-# 旧的随包 TTS 模型备份（已改为按需下载，20MB）
+# 旧的随包 TTS 模型备份（现在模型已内置到 app/src/main/assets/models/，此目录只是历史备份）
 .model-backup/
 
-# 音色/识别模型本地打包产物：体积大，通常由服务器分发
-# 保留 voicepacks 下的说明文档与 voice-sources.json
+# voicepacks 是模型源材与打包工作区，不进版本库；
+# 真正随 APK 分发的是 app/src/main/assets/models/ 下的四个整包（必须提交）
 voicepacks/*.zip
 voicepacks/xiaoya/
 voicepacks/chaowen/

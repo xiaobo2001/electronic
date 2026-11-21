@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 心境快捷面板：三个常用入口，点击直接带 Action 进 MainActivity -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_bg"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="4dp">
+
+    <Button
+        android:id="@+id/widget_firework"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="@null"
+        android:minWidth="0dp"
+        android:text="🎆\n烟花"
+        android:textColor="#FFE8E8E8"
+        android:textSize="11sp" />
+
+    <Button
+        android:id="@+id/widget_romantic"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="@null"
+        android:minWidth="0dp"
+        android:text="💖\n告白"
+        android:textColor="#FFFF69B4"
+        android:textSize="11sp" />
+
+    <Button
+        android:id="@+id/widget_lantern"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="@null"
+        android:minWidth="0dp"
+        android:text="🏮\n孔明灯"
+        android:textColor="#FFFFD700"
+        android:textSize="11sp" />
+</LinearLayout>

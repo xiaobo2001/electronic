@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  录音中弹层：实时计时 + 两个摆在眼前的大按钮。
+  旧版把停止按钮放在系统 AlertDialog 的按钮区，位置靠下、样式弱，
+  用户反馈"找不到录音的按钮"。现在按钮直接画在布局里，主按钮满宽 52dp。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="16dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🎙"
+        android:textSize="40sp" />
+
+    <TextView
+        android:id="@+id/tv_rec_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="正在录音，说一句真心话…"
+        android:textColor="#FFE8E8E8"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/tv_rec_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="0 秒 / 30 秒"
+        android:textColor="#FFFFD700"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="最长 30 秒，说完点下面的按钮"
+        android:textColor="#FF99AABB"
+        android:textSize="11sp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_rec_stop"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="18dp"
+        android:text="■  停止并保存"
+        android:textAllCaps="false"
+        android:textSize="16sp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_rec_cancel"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="取消，不保存"
+        android:textAllCaps="false" />
+</LinearLayout>

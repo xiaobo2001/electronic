@@ -3,6 +3,7 @@ package com.xiaobo.electronic;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -14,14 +15,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import com.xiaobo.electronic.speech.ModelDownloader;
+import com.xiaobo.electronic.speech.ModelInstaller;
 
 /**
- * zip 整包解压的测试。
+ * 内置整包解压的测试。
  *
- * <p>整包下载（国内网盘直链）是加速手段，不是唯一来源：链接失效会自动回退
- * 逐文件下载。但解压这一步必须自己把住，因为包来自第三方网盘——
- * 路径穿越和解压炸弹是这类"下载一个压缩包再解开"流程最常见的两个事故。
+ * <p>解压这一步必须自己把住：包虽然随 APK 内置，但路径穿越和解压炸弹
+ * 仍是"解开一个压缩包"流程最常见的两个事故。
  */
 public class ZipBundleTest {
 
@@ -51,7 +51,9 @@ public class ZipBundleTest {
     public void unzip_keepsDirectoryStructure() throws Exception {
         File z = zipWith("tokens.txt", "dict/jieba.dict.utf8", "dict/pos_dict/prob_emit.utf8");
         File dest = tempDir();
-        ModelDownloader.unzip(z, dest, 1024 * 1024L);
+        try (FileInputStream in = new FileInputStream(z)) {
+            ModelInstaller.unzip(in, dest, 1024 * 1024L, null);
+        }
 
         assertTrue(new File(dest, "tokens.txt").isFile());
         assertTrue(new File(dest, "dict/jieba.dict.utf8").isFile());
@@ -65,7 +67,9 @@ public class ZipBundleTest {
         File z = zipWith("../../evil.txt");
         File dest = tempDir();
         try {
-            ModelDownloader.unzip(z, dest, 1024 * 1024L);
+            try (FileInputStream in = new FileInputStream(z)) {
+                ModelInstaller.unzip(in, dest, 1024 * 1024L, null);
+            }
             fail("含有 ../ 的条目必须被拒绝");
         } catch (IOException expected) {
             assertTrue(expected.getMessage().contains("越界"));
@@ -89,7 +93,9 @@ public class ZipBundleTest {
         }
         File dest = tempDir();
         try {
-            ModelDownloader.unzip(z, dest, 64 * 1024L);   // 上限远小于实际体积
+            try (FileInputStream in = new FileInputStream(z)) {
+                ModelInstaller.unzip(in, dest, 64 * 1024L, null);   // 上限远小于实际体积
+            }
             fail("超过体积上限必须中止");
         } catch (IOException expected) {
             assertTrue(expected.getMessage().contains("体积异常"));

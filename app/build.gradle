@@ -10,8 +10,8 @@ android {
         applicationId "com.xiaobo.electronic"
         minSdk 24
         targetSdk 35
-        versionCode 1303
-        versionName "1.3.3"
+        versionCode 1401
+        versionName "1.4.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -24,10 +24,10 @@ android {
 
     // onnx / fst / txt 必须保持未压缩：sherpa-onnx 直接映射文件内存，
     // 压缩过的资源拿不到连续内存，会静默加载失败（表现为一直降级到系统音色）。
-    // 现在 ASR 识别模型与 TTS 音色模型都是运行时下载到 filesDir（见 ModelDownloader），
-    // assets 里已无这类文件；配置留着是防止哪天重新内置模型时踩同一个坑。
+    // zip 也保持原样：内置模型整包以 zip 存在 assets/models/，解压时直接读字节流，
+    // 二次压缩只会白费 CPU，不会让包更小。
     androidResources {
-        noCompress 'onnx', 'fst', 'txt'
+        noCompress 'onnx', 'fst', 'txt', 'zip'
     }
 
     packagingOptions {
@@ -65,7 +65,8 @@ dependencies {
     implementation libs.toaster
 
     // 本地离线神经网络 TTS + ASR：sherpa-onnx（VITS 中文 + zipformer 流式识别）
-    // 模型不随包，检测到需要时按需下载（AsrModelStore / TtsModelStore），省约 45MB 体积
+    // 模型整包随 APK 内置在 assets/models/，首次使用时由 ModelInstaller 解压到 filesDir，
+    // 全程不联网；详见 AsrModelStore / TtsModelStore
     implementation files('libs/sherpa-onnx-1.13.2.aar')
     implementation libs.kotlin.stdlib
 

@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">电子烟花</string>
     <string name="wallpaper_desc">随机烟花动态壁纸</string>
+    <string name="widget_romantic_desc">一键进入浪漫告白，显示最近纪念日倒计时</string>
+    <string name="widget_anniversary_desc">纪念日大号卡片：一眼看完还有多少天</string>
+    <string name="widget_daily_quote_desc">今日烟花签：每天一句浪漫话，点一下放烟花</string>
+    <string name="widget_quick_desc">快捷面板：烟花 / 告白 / 孔明灯直达</string>
 </resources>

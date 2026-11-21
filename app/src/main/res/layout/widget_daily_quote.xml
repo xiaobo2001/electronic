@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 今日烟花签：按日期取模的一句话，天天不重样但当天稳定 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_bg"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="✨ 今日烟花签"
+        android:textColor="#FFFFD700"
+        android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/widget_quote"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="3"
+        android:padding="4dp"
+        android:text="遇见你，是今晚最好的烟花。"
+        android:textColor="#FFFFE8F2"
+        android:textSize="13sp" />
+
+    <Button
+        android:id="@+id/widget_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@null"
+        android:minHeight="28dp"
+        android:text="🎆 放一朵"
+        android:textColor="#FFFF69B4"
+        android:textSize="12sp" />
+</LinearLayout>

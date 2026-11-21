@@ -5,20 +5,18 @@ import android.content.Context;
 import java.io.File;
 
 /**
- * 离线朗读音色的存放与下载（一套音色一个目录）。
+ * 离线朗读音色的存放与安装（一套音色一个目录）。
  *
- * <p><b>为什么改成下载。</b>一套音色 21MB，而且因为 sherpa-onnx 要直接映射文件内存，
- * gradle 里必须 {@code noCompress}——也就是 21MB 一分不少地躺进 APK。
- * 绝大多数手机自带中文语音包根本用不上它。改为"检测到系统读不了中文才让用户
- * 决定要不要下"，APK 直接瘦 20MB；顺带一个好处：换音色只是换一套文件，
- * 想加新音色不用再发版。
+ * <p>音色整包随 APK 内置在 {@code assets/models/}，首次使用时由
+ * {@link ModelInstaller} 解压到 filesDir。全程不联网，装好即永久离线可用。
+ * 当前只内置小雅一套（音质最好），换听感用变声档即可，无需换模型。
  *
  * <p><b>加载方式。</b>{@code OfflineTts(AssetManager, config)} 在 AssetManager 传 null
  * 时会走 {@code newFromFile}，按文件路径加载——正因为有这条分支，
- * 下载到 {@code filesDir} 的模型才能直接用（assets 是只读的，运行时写不进去）。
+ * 解压到 {@code filesDir} 的模型才能直接用（assets 是只读的，运行时写不进去）。
  *
- * <p><b>来源。</b>HuggingFace（国内走 hf-mirror），各文件体积与仓库逐一核对过，
- * 详见 {@link TtsVoice}。下载逻辑与 {@link AsrModelStore} 共用 {@link ModelDownloader}。
+ * <p>各文件体积与整包逐一核对过，详见 {@link TtsVoice}。
+ * 安装逻辑与 {@link AsrModelStore} 共用 {@link ModelInstaller}。
  */
 public final class TtsModelStore {
 
@@ -26,14 +24,14 @@ public final class TtsModelStore {
     }
 
     public static File dir(Context ctx, TtsVoice v) {
-        return ModelDownloader.dir(ctx, "tts_" + v.id);
+        return ModelInstaller.dir(ctx, "tts_" + v.id);
     }
 
     public static boolean isReady(Context ctx, TtsVoice v) {
-        return ModelDownloader.isReady(ctx, v.pack());
+        return ModelInstaller.isReady(ctx, v.pack());
     }
 
-    /** 当前选中音色是否已下载 */
+    /** 当前选中音色是否已安装 */
     public static boolean isReady(Context ctx) {
         return isReady(ctx, TtsVoice.current());
     }
@@ -72,17 +70,16 @@ public final class TtsModelStore {
         return v.totalBytes();
     }
 
-    public static void download(Context ctx, TtsVoice v, ModelDownloader.Progress cb) {
-        // 先并入在线源清单里的最新直链（清单失效就用内置的，再不行还有官方源兜底）
-        ModelDownloader.download(ctx, PackSources.apply(v.pack()), cb);
+    public static void download(Context ctx, TtsVoice v, ModelInstaller.Progress cb) {
+        ModelInstaller.download(ctx, v.pack(), cb);
     }
 
     /** 删除某套音色，释放空间 */
     public static boolean delete(Context ctx, TtsVoice v) {
-        return ModelDownloader.delete(ctx, v.pack());
+        return ModelInstaller.delete(ctx, v.pack());
     }
 
-    /** 已下载的音色数（菜单里显示"已装 2/3"） */
+    /** 已安装的音色数（菜单里显示"已装 2/3"） */
     public static int installedCount(Context ctx) {
         int n = 0;
         for (TtsVoice v : TtsVoice.ALL) {
@@ -121,6 +118,6 @@ public final class TtsModelStore {
     }
 
     public static String sizeText(long bytes) {
-        return ModelDownloader.sizeText(bytes);
+        return ModelInstaller.sizeText(bytes);
     }
 }

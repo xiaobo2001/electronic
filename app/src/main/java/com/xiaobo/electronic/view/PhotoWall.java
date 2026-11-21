@@ -123,6 +123,10 @@ public final class PhotoWall {
 
         int w = container.getWidth();
         int h = container.getHeight();
+        // 和 showFalling 一样兜底：首次打开时容器可能还没布局完，宽高为 0
+        // 会让所有照片挤在 (0,0)，看上去就像"心形没实现"
+        if (w <= 0) w = ctx.getResources().getDisplayMetrics().widthPixels;
+        if (h <= 0) h = ctx.getResources().getDisplayMetrics().heightPixels;
         int n = Math.min(uris.size(), 26);
         float cx = w / 2f;
         float cy = h * 0.48f;

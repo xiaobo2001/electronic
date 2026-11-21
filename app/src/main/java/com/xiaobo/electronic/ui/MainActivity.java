@@ -84,10 +84,12 @@ import com.xiaobo.electronic.data.FireworkTuning;
 import com.xiaobo.electronic.view.FireworkWallpaperService;
 import com.xiaobo.electronic.util.FontKit;
 import com.xiaobo.electronic.media.GifExporter;
+import com.xiaobo.electronic.media.LoveLetterCard;
 import com.xiaobo.electronic.media.MementoCard;
-import com.xiaobo.electronic.speech.ModelDownloader;
+import com.xiaobo.electronic.media.VoiceNote;
+import com.xiaobo.electronic.data.MemoryAlbumStore;
+import com.xiaobo.electronic.speech.ModelInstaller;
 import com.xiaobo.electronic.speech.OfflineAsr;
-import com.xiaobo.electronic.speech.PackSources;
 import com.xiaobo.electronic.view.ParticleTextView;
 import com.xiaobo.electronic.view.PhotoWall;
 import com.xiaobo.electronic.R;
@@ -189,6 +191,8 @@ public class MainActivity extends AppCompatActivity {
     private java.util.List<String> romanticLines = new java.util.ArrayList<>();
     private int romanticStage = 0; // 0开场 1幕一 2幕二 3幕三 4应答 5庆祝
     private int romanticBeatCounter = 0;
+    /** 彩排：台词停留缩短、跳过应答与庆祝、不记回忆册/不生成卡片 */
+    private boolean isRehearsal = false;
     private android.widget.FrameLayout answerOverlay;
     // ===== 纪念日（#14旧） =====
     private static final String KEY_ANNIVERSARY = "anniversary_list";
@@ -210,7 +214,7 @@ public class MainActivity extends AppCompatActivity {
     private ShakeDetector shakeDetector;
     // ===== 台词朗读：本地离线神经网络优先，自动降级系统引擎 =====
     private SpeechEngine speech;
-    /** 离线语音识别（模型按需下载，不用时为 null） */
+    /** 离线语音识别（模型按需从 APK 内置包解压，不用时为 null） */
     private OfflineAsr asr;
     // ===== 照片回忆墙 / 星空许愿 =====
     private PhotoWall photoWall;
@@ -219,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
     private androidx.activity.result.ActivityResultLauncher<android.content.Intent> voiceLauncher;
     /** 等麦克风权限到手后再发起的语音识别意图（权限未授予时暂存） */
     private Intent pendingVoiceIntent;
-    /** 麦克风权限拿到后要执行的离线识别动作（下载确认或直接开听） */
+    /** 麦克风权限拿到后要执行的离线识别动作（安装确认或直接开听） */
     private Runnable pendingVoiceAction;
     static final String KEY_WEATHER = "weather_mode";
     /** 【新增】壁纸设置说明是否已看过（看过之后菜单点击直接跳预览页） */
@@ -468,13 +472,18 @@ public class MainActivity extends AppCompatActivity {
 
         // 【架构】台词朗读：本地离线音源优先，不可用时自动降级系统引擎
         TtsModelStore.migrateLegacy(this);   // 旧版单音色目录 → 按音色分目录，老用户不用重下
-        // 后台拉一次模型源清单：网盘直链会失效，有了它换链接不用发版
-        PackSources.refreshAsync(this);
+        // 启动后台静默预装：只装当前朗读音色（13MB，告白几乎必用）。
+        // ASR 识别模型（20MB）改为首次点「语音输入」时按需解压——它低频，
+        // 每次启动都解压 20MB 到 filesDir 是纯浪费（IO + 电量 + 存储写入）。
+        // 两条路都是纯本地、不发网络请求，按需路径见 startVoiceInput。
+        ModelInstaller.preinstallAsync(this, new ModelInstaller.Pack[]{
+                TtsVoice.current().pack()
+        });
         speech = new SpeechEngine(this);
         // 朗读时压低 BGM：两者共用 STREAM_MUSIC，不闪避的话人声会被音乐盖住
         speech.setDucking(this::duckBgm);
 
-        // 启动自检：系统读不了中文才引导下载离线音色（延后 2.5s，别和入场动画抢注意力）
+        // 启动自检：系统读不了中文才引导安装内置离线音色（延后 2.5s，别和入场动画抢注意力）
         mainHandler.postDelayed(this::maybePromptTtsVoice, 2500);
 
         // 【架构】演出调度器：把散落的 postDelayed 收口，演出因此可被跳过/暂停
@@ -517,7 +526,7 @@ public class MainActivity extends AppCompatActivity {
             public void onSpeechModePicked(int mode) {
                 if (speech == null) return;
                 speech.stop();
-                // 选了"只用本地"却没下载音色：直接引导下载，别让演出静默无声
+                // 选了"只用本地"却还没安装音色：直接引导安装，别让演出静默无声
                 if (mode == SpeechEngine.MODE_LOCAL && !speech.isLocalModelReady()) {
                     showTtsDownloadOffer();
                     return;
@@ -545,7 +554,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            /** 下载当前音色 / 清理当前音色 */
+            /** 安装当前音色 / 清理当前音色 */
             @Override
             public void onTtsModelManage(boolean download) {
                 if (download) startTtsDownload(TtsVoice.current());
@@ -568,22 +577,6 @@ public class MainActivity extends AppCompatActivity {
                 speech.stop();
                 TtsVoice.setPitch(idx);
                 Toaster.showShort("变声：" + TtsVoice.pitchName());
-                mainHandler.postDelayed(() -> speech.speak("遇见你真好"), 400);
-            }
-
-            @Override
-            public void onTtsSpeakerShuffle() {
-                if (speech == null) return;
-                speech.stop();
-                // 多说话人包：换 sid 就是换一个人念，模型不用重新加载
-                int n = Math.max(1, speech.numSpeakers());
-                int old = TtsVoice.currentSpeaker();
-                int next = old;
-                if (n > 1) {
-                    while (next == old) next = (int) (Math.random() * n);
-                }
-                TtsVoice.setSpeaker(next);
-                Toaster.showShort("换到声音 #" + next);
                 mainHandler.postDelayed(() -> speech.speak("遇见你真好"), 400);
             }
 
@@ -639,14 +632,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public String currentLines() {
-                String s = android.text.TextUtils.join("\n", romanticLines);
-                if (!s.trim().isEmpty()) return s;
-                // 没打开过浪漫设置时 romanticLines 是空列表，直接返回会让"存成剧本"
-                // 永远提示"当前还没有台词"，看起来像功能坏了。逐级回退：
-                // 上次演出用过的台词 → 当前主题的默认台词。
-                String last = MMKV.defaultMMKV().decodeString("last_romantic_lines", "");
-                if (last != null && !last.trim().isEmpty()) return last;
-                return ThemeManager.romanticLines(currentTheme);
+                return currentSpeechText();
             }
 
             @Override
@@ -719,11 +705,48 @@ public class MainActivity extends AppCompatActivity {
                     Toaster.showShort("星空满了（最多 " + WishStore.MAX + " 个愿望）");
                 }
             }
+
+            // ===== 新增四项 =====
+            @Override
+            public void onMemoryReplay(String lines) {
+                if (lines == null || lines.trim().isEmpty()) {
+                    Toaster.showShort("这段没有台词");
+                    return;
+                }
+                startRomanticMode(lines, 3);
+            }
+
+            @Override
+            public void onMemoryToLetter(String lines) {
+                dialogs.showLoveLetterInput(lines);
+            }
+
+            @Override
+            public void onLoveLetterGenerate(String text, String herName, String myName, int fontIndex) {
+                generateLoveLetter(text, herName, myName, fontIndex);
+            }
+
+            @Override
+            public void onVoiceRecord(boolean start) {
+                if (start) beginVoiceRecord();
+            }
+
+            @Override
+            public void onVoiceAction(String action) {
+                if ("play".equals(action)) playVoiceNote();
+                else if ("delete".equals(action)) deleteVoiceNote();
+            }
+
+            @Override
+            public void onQuizFinished(int correct, int total) {
+                celebrateQuiz(correct, total);
+            }
         });
 
         // 按钮点击事件
         // 走 UiGuard：600ms 内的连点丢掉，避免"开始演出/随机播放"被触发两次
         UiGuard.onClick(btnRomantic, this::showRomanticDialog);
+        // 注：四个新功能的业务方法定义在下方 ===== 新增功能 ===== 区块
         UiGuard.onClick(btnAutoPlay, this::toggleAutoPlay);
         UiGuard.onClick(btnMore, () -> showMoreMenu(btnMore));
     }
@@ -1130,12 +1153,23 @@ public class MainActivity extends AppCompatActivity {
     /** 【#19】桌面小组件一键浪漫入口 */
     private void handleRomanticShortcut(Intent intent) {
         if (intent == null) return;
-        if (RomanticWidgetProvider.ACTION_ROMANTIC.equals(intent.getAction())) {
+        String action = intent.getAction();
+        if (RomanticWidgetProvider.ACTION_ROMANTIC.equals(action)
+                || WidgetActions.ROMANTIC.equals(action)) {
             postRomanticCue(() -> {
                 if (!isRomanticMode && fireworkReady) {
                     startRomanticMode(ThemeManager.romanticLines(currentTheme), 3);
                 }
             }, 800);
+        } else if (WidgetActions.FIREWORK.equals(action)) {
+            postRomanticCue(() -> {
+                if (!isRomanticMode && fireworkReady) onShake(); // 复用"满屏连发"那套随机烟花
+            }, 400);
+        } else if (WidgetActions.LANTERN.equals(action)) {
+            postRomanticCue(() -> {
+                if (!lanternTapMode) toggleLanternTapMode();   // 确保开启，而不是切换
+                Toaster.showShort("🏮 点屏幕放孔明灯");
+            }, 400);
         }
     }
 
@@ -1165,6 +1199,13 @@ public class MainActivity extends AppCompatActivity {
         stopRomanticMode();
         stopMusic();
         isAutoPlaying = false;
+        // 录音中途退出：停掉麦克风并丢弃这次半截录音，别在后台占着 MIC
+        if (recordingDialog != null || VoiceNote.isRecording()) {
+            if (VoiceNote.isRecording()) VoiceNote.stopRecord();
+            if (VoiceNote.exists(this)) VoiceNote.delete(this);
+            recordingDialog = null;
+            recordingTick = null;
+        }
         mainHandler.removeCallbacksAndMessages(null);
         petalPool.clear();
         if (rhythmOn) RhythmFirework.getInstance().stop();
@@ -1202,6 +1243,8 @@ public class MainActivity extends AppCompatActivity {
                 view.findViewById(R.id.btn_pick_bgm);
         final com.google.android.material.checkbox.MaterialCheckBox recordFull =
                 view.findViewById(R.id.cb_record_full);
+        final com.google.android.material.checkbox.MaterialCheckBox rehearsal =
+                view.findViewById(R.id.cb_rehearsal);
         final com.google.android.material.button.MaterialButton btnGenerate =
                 view.findViewById(R.id.btn_gen_code);
         final com.google.android.material.button.MaterialButton btnImport =
@@ -1260,9 +1303,17 @@ public class MainActivity extends AppCompatActivity {
             myName = myNameInput.getText().toString().trim();
             MMKV.defaultMMKV().encode(KEY_HER_NAME, herName);
             MMKV.defaultMMKV().encode(KEY_MY_NAME, myName);
-            pendingRecordFull = recordFull.isChecked();
+            isRehearsal = rehearsal.isChecked();
+            // 彩排不录视频：自己看效果，别留下"假告白"的记录
+            pendingRecordFull = recordFull.isChecked() && !isRehearsal;
+            if (isRehearsal) rehearsal.setChecked(false); // 下次开默认是正式演出
             dialog.dismiss();
             MMKV.defaultMMKV().encode("last_romantic_lines", message);
+            if (isRehearsal) {
+                Toaster.showShort("🎭 彩排开始：台词加速，跳过应答与庆祝");
+                startRomanticMode(message, Math.min(seconds, 2));
+                return;
+            }
             if (pendingRecordFull && !isRecording) {
                 // 先拿录屏授权，回调后再正式开始
                 pendingExportMessage = message;
@@ -1500,7 +1551,18 @@ public class MainActivity extends AppCompatActivity {
         // 【UI 优化】多句演出时给出进度，否则用户不知道还要等多久（尤其 10 句的长告白）
         showStageProgress(lineIdx, romanticLines.size());
         String line = romanticLines.get(lineIdx);
-        speech.speak(line); // 【#18】TTS 同步朗读台词
+        // 【真人留声】第一句若有用户原声，播他的声音代替合成音；其余句子仍走 TTS。
+        // 只替换第一句：一段录音配多句台词会变成"一句话念三遍"，反而尴尬。
+        if (lineIdx == 0 && VoiceNote.exists(this)) {
+            speech.stop();
+            duckBgm(true);
+            VoiceNote.play(this, null,
+                    () -> duckBgm(true),
+                    () -> duckBgm(false),
+                    null);
+        } else {
+            speech.speak(line); // 【#18】TTS 同步朗读台词
+        }
         // 【随机特效#20】每句台词随机入场（像 PPT 翻页动画：聚拢/飞入/落下/升起/淡入/波浪/弹跳）
         ParticleTextView.EntranceStyle entrance =
                 LINE_ENTRANCES[random.nextInt(LINE_ENTRANCES.length)];
@@ -1540,6 +1602,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** 台词停留时长（#19 + 情绪曲线#23）：按字数动态 + 前段慢而柔、越往后越紧凑 */
     private long lineDwellMs(String line, int idx, int total) {
+        if (isRehearsal) return 900; // 彩排：每句快速掠过，自己看走位与特效
         int len = line == null ? 0 : line.trim().length();
         long base = Math.max(2800, Math.min(5400, 1900 + len * 260L));
         float mood = 1.15f - 0.25f * (total <= 1 ? 0f : (float) idx / (total - 1)); // 1.15 → 0.9 渐进
@@ -1761,7 +1824,15 @@ public class MainActivity extends AppCompatActivity {
                         .shape(FireworkConfig.Shape.CUSTOM).shapeBitmap(emojiShapeBitmap("🌹"))
                         .colors(0xFFFF2D55, 0xFFFF69B4)
                         .count(scaledCount(130)).range(0.9f).trail(1.2f).build());
-                postRomanticCue(this::showAnswerOverlay, 1200);
+                if (isRehearsal) {
+                    // 彩排到终章就收场：不弹应答、不生成卡片、不记回忆
+                    postRomanticCue(() -> {
+                        Toaster.showShort("🎭 彩排完成，正式演出会更慢更有仪式感");
+                        if (isRomanticMode) stopRomanticMode();
+                    }, 1200);
+                } else {
+                    postRomanticCue(this::showAnswerOverlay, 1200);
+                }
             }, 1500);
         }, 3 * 900);
     }
@@ -2045,6 +2116,7 @@ public class MainActivity extends AppCompatActivity {
         }, 5800 + 16 * 280 + 300);
         // 记入纪念日（#14）+ 生成纪念卡片（#13）
         saveAnniversary("表白成功纪念日");
+        recordMemory(MemoryAlbumStore.RESULT_YES);   // 记入告白回忆册
         postRomanticCue(() -> {
             // 【性能#24】纪念卡片生成后台化：1080×1350 位图 + PNG 压缩约 0.5~2s，
             // 原在主线程会卡庆祝高峰帧；后台生成，完成后回主线程 Toast（快照防演出状态变化）
@@ -2106,6 +2178,7 @@ public class MainActivity extends AppCompatActivity {
     /** 应答：再想想——温柔收场（女生心动向#21：添一枚柔粉爱心陪她慢慢想） */
     private void onAnswerThink() {
         dismissAnswerOverlay();
+        recordMemory(MemoryAlbumStore.RESULT_THINK);   // "再想想"也是一段回忆，一并记下
         int w = rootLayout.getWidth();
         int h = rootLayout.getHeight();
         GlobalFirework.getInstance().bloom(w / 2f, h / 2f - 80f, new FireworkConfig.Builder()
@@ -2183,6 +2256,180 @@ public class MainActivity extends AppCompatActivity {
         double age = ((System.currentTimeMillis() - epochMs) / 86400000.0) % 29.530588853;
         if (age < 0) age += 29.530588853;
         return (float) age;
+    }
+
+    // ==================== 新增功能：回忆册 / 情书 / 留声 / 暖场 ====================
+
+    /** 当前台词：优先本次演出 → 上次演出 → 主题默认，情书与剧本共用 */
+    private String currentSpeechText() {
+        String s = android.text.TextUtils.join("\n", romanticLines);
+        if (!s.trim().isEmpty()) return s;
+        String last = MMKV.defaultMMKV().decodeString("last_romantic_lines", "");
+        if (last != null && !last.trim().isEmpty()) return last;
+        return ThemeManager.romanticLines(currentTheme);
+    }
+
+    /** 后台生成情书长图并保存相册，完成回主线程提示 */
+    private void generateLoveLetter(final String text, final String herName,
+                                    final String myName, final int fontIndex) {
+        new Thread(() -> {
+            android.net.Uri uri = LoveLetterCard.generateAndSave(this,
+                    java.util.Arrays.asList(text.split("\n")), herName, myName, fontIndex);
+            mainHandler.post(() -> {
+                if (!isFinishing()) {
+                    Toaster.showShort(uri != null ? "💌 情书长图已存到相册" : "生成失败，请重试");
+                }
+            });
+        }, "love-letter").start();
+    }
+
+    /** 录音中的进度弹层引用：停止录音时要关掉它、并撤掉计时任务 */
+    private androidx.appcompat.app.AlertDialog recordingDialog;
+    private Runnable recordingTick;
+
+    /**
+     * 录一句真心话：申请麦克风 → 开始录音 → 弹出带计时的对话框，
+     * 用户按「停止并保存」收尾（旧版要再点一次菜单，没人找得到，等于录了没法停）。
+     */
+    private void beginVoiceRecord() {
+        if (VoiceNote.isRecording()) {
+            // 录音中再次进入：直接弹出录音弹层，让用户有地方按"停止"
+            showRecordingDialog();
+            return;
+        }
+        ensureMicPermission(() -> {
+            if (!VoiceNote.startRecord(this, null)) {
+                Toaster.showShort("录音启动失败，请检查麦克风权限");
+                return;
+            }
+            showRecordingDialog();
+        });
+    }
+
+    /** 录音中弹层：每秒刷新计时，布局内两个按钮一眼可见 */
+    private void showRecordingDialog() {
+        if (isFinishing() || isDestroyed()) return;
+        if (recordingDialog != null && recordingDialog.isShowing()) return;
+        View v = getLayoutInflater().inflate(R.layout.dialog_recording, null);
+        final TextView timeView = v.findViewById(R.id.tv_rec_time);
+        final long start = System.currentTimeMillis();
+        UiGuard.SafeBuilder sb = new UiGuard.SafeBuilder(this);
+        sb.setTitle("🎙 录一句真心话");
+        sb.setView(v);
+        sb.setCancelable(true);
+        recordingDialog = sb.show();
+        if (recordingDialog == null) {
+            // 弹窗建不起来就别让麦克风空转
+            stopVoiceRecord(false);
+            return;
+        }
+        v.findViewById(R.id.btn_rec_stop).setOnClickListener(z -> stopVoiceRecord(true));
+        v.findViewById(R.id.btn_rec_cancel).setOnClickListener(z -> stopVoiceRecord(false));
+        // 用户点外面/返回键取消，也要停录音，别在后台偷录
+        recordingDialog.setOnCancelListener(d -> stopVoiceRecord(false));
+        final Handler tickHandler = mainHandler;
+        recordingTick = new Runnable() {
+            @Override
+            public void run() {
+                if (!VoiceNote.isRecording()) return;  // 已被 30s 自动收尾
+                int sec = (int) ((System.currentTimeMillis() - start) / 1000);
+                timeView.setText(sec + " 秒 / 30 秒");
+                tickHandler.postDelayed(this, 500);
+            }
+        };
+        tickHandler.post(recordingTick);
+        // 30 秒自动收尾后自动关弹层，并明确告诉用户"已经保存了"
+        tickHandler.postDelayed(() -> {
+            if (recordingDialog != null && recordingDialog.isShowing()
+                    && !VoiceNote.isRecording()) {
+                recordingDialog.dismiss();
+                recordingDialog = null;
+                Toaster.showShort("已录满 30 秒，自动保存");
+            }
+        }, VoiceNote.MAX_DURATION_MS_PLUS() + 400);
+    }
+
+    /**
+     * 停止录音、关弹层、撤计时。
+     *
+     * @param keep true=停止并保存；false=取消，丢弃本次录音
+     */
+    private void stopVoiceRecord(boolean keep) {
+        if (recordingTick != null) {
+            mainHandler.removeCallbacks(recordingTick);
+            recordingTick = null;
+        }
+        if (recordingDialog != null && recordingDialog.isShowing()) {
+            recordingDialog.dismiss();
+        }
+        recordingDialog = null;
+        boolean ok = VoiceNote.stopRecord();
+        if (!keep) {
+            // 取消：把刚落盘的文件删掉，避免"点了取消却留下半句"
+            if (VoiceNote.exists(this)) VoiceNote.delete(this);
+            Toaster.showShort("已取消，本次录音没有保存");
+            return;
+        }
+        Toaster.showShort(ok ? "录好了，告白时会念出你的声音" : "录音太短或失败，再说一次试试");
+    }
+
+    /** 试听录音，压低 BGM 让人声清楚 */
+    private void playVoiceNote() {
+        duckBgm(true);
+        VoiceNote.play(this, null,
+                () -> duckBgm(true),
+                () -> duckBgm(false),
+                new VoiceNote.Callback() {
+                    @Override
+                    public void onState(String message) {
+                    }
+
+                    @Override
+                    public void onFinished(boolean ok, String message) {
+                        duckBgm(false);
+                        if (!ok) Toaster.showShort(message);
+                    }
+                });
+    }
+
+    private void deleteVoiceNote() {
+        boolean ok = VoiceNote.delete(this);
+        Toaster.showShort(ok ? "录音已删除" : "没有可删除的录音");
+    }
+
+    /** 暖场问答结束：按答对数放专属烟花，不打断当前界面 */
+    private void celebrateQuiz(final int correct, final int total) {
+        int w = rootLayout.getWidth(), h = rootLayout.getHeight();
+        float cx = w / 2f, cy = h / 2f - 60f;
+        int n = com.xiaobo.electronic.data.QuizData.fireworksFor(correct);
+        SoundFx.playChime();
+        for (int i = 0; i < n; i++) {
+            final int fi = i;
+            postRomanticCue(() -> {
+                FireworkConfig cfg = (fi % 3 == 0)
+                        ? new FireworkConfig.Builder().shape(FireworkConfig.Shape.HEART)
+                        .colors(0xFFFF69B4, 0xFFFFD700, Color.WHITE)
+                        .count(scaledCount(120)).range(1.1f).trail(1.4f).build()
+                        : new FireworkConfig.Builder()
+                        .colors(0xFFFFD700, Color.WHITE, hueColorApp(fi * 24))
+                        .count(scaledCount(80)).range(1.0f).trail(1.2f).build();
+                GlobalFirework.getInstance().bloomSilently(
+                        w * (0.12f + random.nextFloat() * 0.76f),
+                        h * (0.12f + random.nextFloat() * 0.42f), cfg);
+            }, fi * 240L);
+        }
+        Toaster.showShort("💞 " + com.xiaobo.electronic.data.QuizData.verdict(correct, total));
+    }
+
+    /** 演出结束时记一条回忆：结果由调用方传（我愿意 / 再想想） */
+    private void recordMemory(int result) {
+        try {
+            MemoryAlbumStore.add(System.currentTimeMillis(),
+                    android.text.TextUtils.join("\n", romanticLines),
+                    starView.getCurrentZodiacName(), moonAgeNow(),
+                    result, herName, myName);
+        } catch (Throwable ignored) {
+        }
     }
 
     private void startMusic() {
@@ -2789,7 +3036,13 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 pendingVoiceIntent = null;
                 pendingVoiceAction = null;
-                Toaster.showShort("需要麦克风权限才能录音识别");
+                // 永久拒绝（"不再询问"）时系统不会再弹权限框，点录音会像"没反应"——
+                // 这时必须给一条去设置里开启的明路
+                if (!shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
+                    showMicPermissionHelp();
+                } else {
+                    Toaster.showShort("需要麦克风权限才能录音识别");
+                }
             }
         });
         // 录屏授权回调
@@ -2884,8 +3137,8 @@ public class MainActivity extends AppCompatActivity {
      * 语音输入入口：本地离线识别优先，其次系统识别器，最后退回输入法语音键盘。
      *
      * <p>国内 ROM 基本没有 Google 语音识别，所以真正好用的第一条路是 sherpa-onnx
-     * 的离线模型——但它有 25MB，塞进 APK 会让体积从 52MB 涨到 77MB，
-     * 而这个功能是低频的，所以改成<b>第一次点的时候才下载</b>，下完永久离线可用。
+     * 的离线模型——整包随 APK 内置，<b>第一次点时从本地解压安装</b>，
+     * 不联网、不消耗流量，装完永久离线可用。
      */
     private void startVoiceInput() {
         // ① 模型已就绪：直接开听，不联网、不依赖任何系统服务
@@ -2893,7 +3146,7 @@ public class MainActivity extends AppCompatActivity {
             ensureMicPermission(this::startOfflineAsr);
             return;
         }
-        // ② 没模型：先问一句要不要下（25MB 不是小数目，得让用户知道）
+        // ② 还没安装：先说明一次，用户确认后从内置资源解压
         ensureMicPermission(this::showAsrDownloadConfirm);
     }
 
@@ -2908,28 +3161,48 @@ public class MainActivity extends AppCompatActivity {
         micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO);
     }
 
-    /** 首次下载确认：把体积、离线、隐私三件事讲清楚再让用户决定 */
+    /** 麦克风被永久拒绝后的引导：给一个直接跳到本应用权限页的按钮 */
+    private void showMicPermissionHelp() {
+        new UiGuard.SafeBuilder(this)
+                .setTitle("🎙 需要麦克风权限")
+                .setMessage("录音留声、语音输入和音乐律动都要用麦克风。\n\n"
+                        + "刚才没有弹出系统权限框，说明之前选过「拒绝且不再询问」。"
+                        + "请到系统设置里把「浪漫烟花」的麦克风权限改成「允许」，再回来试。")
+                .setPositiveButton("去设置开启", (d, w) -> {
+                    try {
+                        startActivity(new Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.parse("package:" + getPackageName())));
+                    } catch (Exception e) {
+                        Toaster.showShort("打不开系统设置，请手动到应用权限里开启");
+                    }
+                })
+                .setNegativeButton("暂不", null)
+                .show();
+    }
+
+    /** 首次安装说明：把"内置资源、不联网、隐私"三件事讲清楚再让用户决定 */
     private void showAsrDownloadConfirm() {
-        long bytes = AsrModelStore.totalBytes();
         new UiGuard.SafeBuilder(this)
                 .setTitle("🎤 离线语音识别")
-                .setMessage("首次使用需要下载语音模型，约 " + AsrModelStore.sizeText(bytes)
-                        + "（只需这一次）。\n\n"
-                        + "下载后完全离线可用：断网、飞行模式也能识别，"
+                .setMessage("将从应用内置资源安装语音模型，约 "
+                        + AsrModelStore.sizeText(AsrModelStore.totalBytes())
+                        + "，全程不联网、不消耗流量。\n\n"
+                        + "安装后完全离线可用：断网、飞行模式也能识别，"
                         + "录音全程在本机处理，不上传任何服务器。\n\n"
-                        + "不想下载也可以用输入法自带的🎤语音键盘直接说。")
-                .setPositiveButton("下载并识别", (d, w) -> startAsrDownload())
+                        + "不想用也可以用输入法自带的🎤语音键盘直接说。")
+                .setPositiveButton("安装并识别", (d, w) -> startAsrDownload())
                 .setNegativeButton("用输入法说", (d, w) -> fallbackToImeVoice())
                 .show();
     }
 
     /**
-     * 模型下载对话框（识别模型 / 音色模型共用）：进度条 + 已下/总量 + 可取消。
+     * 模型安装对话框（识别模型 / 音色模型共用）：进度条 + 已装/总量 + 可取消。
      *
-     * <p>抽出来是因为两个模型的下载 UI 完全一样，只有"下完之后干什么"不同。
+     * <p>抽出来是因为两个模型的安装 UI 完全一样，只有"装完之后干什么"不同。
      */
     private void runModelDownload(String title,
-                                  java.util.function.Consumer<ModelDownloader.Progress> starter,
+                                  java.util.function.Consumer<ModelInstaller.Progress> starter,
                                   Runnable onOk,
                                   java.util.function.Consumer<String> onFail) {
         android.widget.ProgressBar bar = new android.widget.ProgressBar(this, null,
@@ -2940,13 +3213,13 @@ public class MainActivity extends AppCompatActivity {
         tv.setTextSize(12f);
         tv.setPadding(0, 12, 0, 0);
         tv.setText("准备中…");
-        // 单独一行说明"正在下第几个文件"：慢网下进度条一动不动时，
+        // 单独一行说明"正在装第几个文件"：大文件解压时让进度可感知，
         // 有这行字用户才知道还活着，而不是以为卡死了
         android.widget.TextView tvStage = new android.widget.TextView(this);
         tvStage.setTextColor(0xFF66788A);
         tvStage.setTextSize(11f);
         tvStage.setPadding(0, 4, 0, 0);
-        tvStage.setText("正在连接…");
+        tvStage.setText("正在解压…");
         android.widget.LinearLayout box = new android.widget.LinearLayout(this);
         box.setOrientation(android.widget.LinearLayout.VERTICAL);
         float dp = getResources().getDisplayMetrics().density;
@@ -2962,11 +3235,11 @@ public class MainActivity extends AppCompatActivity {
                 .setCancelable(false)
                 .setNegativeButton("取消", (d, w) -> {
                     cancelled[0] = true;
-                    Toaster.showShort("已取消下载");
+                    Toaster.showShort("已取消安装");
                 })
                 .show();
 
-        starter.accept(new ModelDownloader.Progress() {
+        starter.accept(new ModelInstaller.Progress() {
             @Override
             public boolean isCancelled() {
                 return cancelled[0];
@@ -2983,7 +3256,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!dlg.isShowing()) return;   // 用户取消了，别再往已关的窗口里塞数据
                 int pct = (int) Math.min(99, done * 100 / Math.max(1, total));
                 bar.setProgress(pct);
-                tv.setText(ModelDownloader.sizeText(done) + " / " + ModelDownloader.sizeText(total)
+                tv.setText(ModelInstaller.sizeText(done) + " / " + ModelInstaller.sizeText(total)
                         + "   " + pct + "%");
             }
 
@@ -3000,30 +3273,30 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** 下载识别模型，带进度；成功后立刻进入识别，失败则退回输入法方案 */
+    /** 安装识别模型，带进度；成功后立刻进入识别，失败则退回输入法方案 */
     private void startAsrDownload() {
-        runModelDownload("正在下载语音模型",
+        runModelDownload("正在安装语音模型",
                 p -> AsrModelStore.download(this, p),
                 () -> {
                     Toaster.showShort("模型就绪，开始听你说 🎤");
                     startOfflineAsr();
                 },
                 msg -> new UiGuard.SafeBuilder(this)
-                        .setTitle("语音模型下载失败")
-                        .setMessage(msg + "\n\n可以换个网络（比如 Wi-Fi）再试；"
-                                + "已经下好的文件不会重复下载。也可以先改用输入法的 🎤 说话。")
+                        .setTitle("语音模型安装失败")
+                        .setMessage(msg + "\n\n模型来自应用内置资源，一般只会在存储异常时失败；"
+                                + "也可以先改用输入法的 🎤 说话。")
                         .setPositiveButton("重试", (d, w) -> startAsrDownload())
                         .setNegativeButton("用输入法说", (d, w) -> fallbackToImeVoice())
                         .show());
     }
 
-    // ===== 离线朗读音色：启动检测 → 不支持才让用户决定要不要下 =====
+    // ===== 离线朗读音色：启动检测 → 不支持才让用户决定要不要安装 =====
 
     /**
-     * 启动后检测这台手机能不能读中文；读不了才问用户要不要下载离线音色。
+     * 启动后检测这台手机能不能读中文；读不了才问用户要不要安装内置离线音色。
      *
-     * <p>顺序上刻意"能不弹就不弹"：本地音色已下载 / 系统能读中文 / 用户说过暂时不用，
-     * 三种情况都直接跳过。只有确认读不出来时才打扰——表白前跳个下载弹窗很败兴。
+     * <p>顺序上刻意"能不弹就不弹"：本地音色已安装 / 系统能读中文 / 用户说过暂时不用，
+     * 三种情况都直接跳过。只有确认读不出来时才打扰——表白前跳个安装弹窗很败兴。
      */
     private void maybePromptTtsVoice() {
         if (speech == null || isFinishing() || isDestroyed()) return;
@@ -3033,19 +3306,19 @@ public class MainActivity extends AppCompatActivity {
 
         boolean needLocal = SpeechEngine.getMode() == SpeechEngine.MODE_LOCAL;
         if (needLocal) {
-            // 用户点名只要本地音色：没什么好探的，直接引导下载
+            // 用户点名只要本地音色：没什么好探的，直接引导安装
             showTtsDownloadOffer();
             return;
         }
         if (SpeechEngine.cachedSystemChinese() == 1) return;   // 上次确认能读中文，省一次引擎初始化
         // 其余情况（没探过 / 上次探到不支持）都重探一次：
-        // 用户中途装了中文语音包时，结论要能自己翻回来，不能一辈子缠着人家下载
+        // 用户中途装了中文语音包时，结论要能自己翻回来，不能一辈子缠着人家安装
         speech.probeSystemChinese(ok -> {
             if (!ok && !isFinishing() && !isDestroyed() && !isRomanticMode) showTtsDownloadOffer();
         });
     }
 
-    /** 系统读不了中文时的下载询问：先讲清楚为什么，再让用户选 */
+    /** 系统读不了中文时的安装询问：先讲清楚为什么，再让用户选 */
     private void showTtsDownloadOffer() {
         if (isFinishing() || isDestroyed()) return;
         TtsVoice v = TtsVoice.current();
@@ -3054,23 +3327,24 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle("🔊 台词朗读需要音色")
                 .setMessage("检测到这台手机的系统语音引擎没有中文语音包，"
                         + "演出时台词会一句都读不出来。\n\n"
-                        + "可以下载离线音色「" + v.name + "」（约 " + size + "，只需这一次）：\n"
-                        + "· 下载后完全离线，断网、飞行模式也能读；\n"
+                        + "应用内置了离线音色「" + v.name + "」（约 " + size
+                        + "），从本地安装只需这一次：\n"
+                        + "· 全程不联网、不消耗流量；装完后断网、飞行模式也能读；\n"
                         + "· 音色统一稳定，不随手机品牌变化。\n\n"
                         + "之后还可在「台词朗读」里换其他音色、"
-                        + "或用变声档调出男声/娃娃音（不用再下载）。\n\n"
-                        + "不想下载，也可以到系统设置里装中文语音包（不占本 App 空间）。")
-                .setPositiveButton("下载 " + size, (d, w) -> startTtsDownload(v))
+                        + "或用变声档调出男声/娃娃音（不用再安装）。\n\n"
+                        + "不想安装，也可以到系统设置里装中文语音包（不占本 App 空间）。")
+                .setPositiveButton("安装 " + size, (d, w) -> startTtsDownload(v))
                 .setNegativeButton("去系统设置", (d, w) -> SpeechEngine.openSystemTtsSettings(this))
                 .setNeutralButton("暂时不用", (d, w) -> {
-                    // 记下来：下次启动不再问，但菜单里随时可以自己下
+                    // 记下来：下次启动不再问，但菜单里随时可以自己装
                     SpeechEngine.setTtsPromptDisabled(true);
-                    Toaster.showShort("已跳过，之后可在「台词朗读」里下载");
+                    Toaster.showShort("已跳过，之后可在「台词朗读」里安装");
                 })
                 .show();
     }
 
-    /** 选用一个已下载的音色：切过去、预热、试听 */
+    /** 选用一个已安装的音色：切过去、预热、试听 */
     private void applyTtsVoice(TtsVoice v) {
         if (speech == null) return;
         speech.stop();
@@ -3082,7 +3356,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startTtsDownload(TtsVoice v) {
-        runModelDownload("正在下载音色「" + v.name + "」",
+        runModelDownload("正在安装音色「" + v.name + "」",
                 p -> TtsModelStore.download(this, v, p),
                 () -> {
                     Toaster.showShort("音色就绪，给你试听一句 🔊");
@@ -3091,35 +3365,34 @@ public class MainActivity extends AppCompatActivity {
                     speech.warmUp();
                     mainHandler.postDelayed(() -> speech.speak("遇见你真好"), 900);
                 },
-                msg -> showDownloadFailed("音色「" + v.name + "」下载失败", msg,
+                msg -> showDownloadFailed("音色「" + v.name + "」安装失败", msg,
                         () -> startTtsDownload(v)));
     }
 
     /**
-     * 下载失败后的重试入口。
+     * 安装失败后的重试入口。
      *
-     * <p>以前只弹一句"下载失败"，用户得自己回菜单重新点一遍，而且看着像要重下 20MB。
-     * 现在明确告诉他失败在哪个文件、为什么，并且说明已下好的部分会留着——
-     * 有了断点续传，重试是真的接着下，不是从头再来。
+     * <p>明确告诉用户失败在哪个文件、为什么。模型来自应用内置资源，
+     * 失败基本只可能是存储异常，重试会从内置整包重新解压。
      */
     private void showDownloadFailed(String title, String reason, Runnable retry) {
         new UiGuard.SafeBuilder(this)
                 .setTitle(title)
-                .setMessage(reason + "\n\n可以换个网络（比如 Wi-Fi）再试；"
-                        + "已经下好的模型文件不会重复下载。")
+                .setMessage(reason + "\n\n模型来自应用内置资源，一般只会在存储异常时失败；"
+                        + "已安装好的文件不会重复解压。")
                 .setPositiveButton("重试", (d, w) -> retry.run())
                 .setNegativeButton("以后再说", null)
                 .show();
     }
 
-    /** 清理已下载的音色，释放空间 */
+    /** 清理已安装的音色，释放空间 */
     private void confirmDeleteTtsModel() {
         TtsVoice v = TtsVoice.current();
         new UiGuard.SafeBuilder(this)
                 .setTitle("清理音色「" + v.name + "」")
-                .setMessage("将删除已下载的这套音色（约 "
+                .setMessage("将删除已安装的这套音色（约 "
                         + TtsModelStore.sizeText(v.totalBytes())
-                        + "），台词朗读改由系统引擎承担。\n\n需要时可随时重新下载。")
+                        + "），台词朗读改由系统引擎承担。\n\n需要时可随时从应用内置资源重新安装。")
                 .setPositiveButton("删除", (d, w) -> {
                     if (TtsModelStore.delete(this, v)) {
                         if (speech != null) speech.resetLocal();
@@ -3618,6 +3891,22 @@ public class MainActivity extends AppCompatActivity {
             mainHandler.post(() -> showAnniversaryList());
         });
 
+        bindMenu(balloon, menuView, R.id.tv_memory_album, () -> {
+            mainHandler.post(() -> dialogs.showMemoryAlbum());
+        });
+
+        bindMenu(balloon, menuView, R.id.tv_love_letter, () -> {
+            mainHandler.post(() -> dialogs.showLoveLetterInput(currentSpeechText()));
+        });
+
+        bindMenu(balloon, menuView, R.id.tv_voice_note, () -> {
+            mainHandler.post(() -> dialogs.showVoiceNoteDialog());
+        });
+
+        bindMenu(balloon, menuView, R.id.tv_quiz, () -> {
+            mainHandler.post(() -> dialogs.showQuiz());
+        });
+
         bindMenu(balloon, menuView, R.id.tv_speech, () -> {
             showSpeechPicker();
         });
@@ -3640,6 +3929,14 @@ public class MainActivity extends AppCompatActivity {
 
         bindMenu(balloon, menuView, R.id.tv_guide, () -> {
             mainHandler.post(() -> dialogs.showGuide(true));
+        });
+
+        bindMenu(balloon, menuView, R.id.tv_privacy, () -> {
+            mainHandler.post(() -> dialogs.showPrivacyPolicy());
+        });
+
+        bindMenu(balloon, menuView, R.id.tv_permissions, () -> {
+            mainHandler.post(() -> dialogs.showPermissions());
         });
 
         // 菜单状态（UI 优化）：开关项显示"已开启/已关闭"，选择项显示当前值，
@@ -3774,7 +4071,7 @@ public class MainActivity extends AppCompatActivity {
         setMenuValue(menuView, R.id.tv_tuning, "🎛 烟花手感", FireworkTuning.summary());
         setMenuValue(menuView, R.id.tv_voice, "🎤 语音输入台词",
                 AsrModelStore.isReady(this) ? "离线识别 · 已就绪"
-                        : "首次需下载 " + AsrModelStore.sizeText(AsrModelStore.totalBytes()));
+                        : "首次需安装 " + AsrModelStore.sizeText(AsrModelStore.totalBytes()));
         setMenuValue(menuView, R.id.tv_wish, "🌟 星空许愿墙",
                 (wishSky != null ? "已展开 · " : "") + WishStore.load().size() + " 个愿望");
         setMenuValue(menuView, R.id.tv_scripts, "📜 我的剧本库", ScriptStore.load().size() + " 套");

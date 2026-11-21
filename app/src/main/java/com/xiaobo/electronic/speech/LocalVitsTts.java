@@ -18,10 +18,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 本地离线神经网络 TTS：sherpa-onnx + VITS 中文（小雅，int8 量化）。
  *
- * <p>模型<b>按需下载</b>到 {@code filesDir/tts}（见 {@link TtsModelStore}），
+ * <p>模型整包随 APK 内置，首次使用时<b>解压</b>到 {@code filesDir/tts}（见 {@link TtsModelStore}），
  * 通过文件路径加载：{@code new OfflineTts(null, cfg)}——AssetManager 传 null 时
  * sherpa-onnx 会走 {@code newFromFile} 分支。不联网、不需要任何 API Key。
- * 模型没下载时本类直接判失败，由 {@link SpeechEngine} 引导用户下载。
+ * 模型没安装时本类直接判失败，由 {@link SpeechEngine} 引导用户安装。
  *
  * <p><b>为什么用本地而不是云端</b>：微软 Edge 朗读端点在 2026 年 10 月做了一次迁移，
  * 大量依赖它的第三方工具一夜之间全部 403。表白这种"一辈子就这一次"的场景，
@@ -49,7 +49,7 @@ public class LocalVitsTts {
     /** 模型上报的说话人数（多说话人包才有意义） */
     private volatile int numSpeakers;
     private volatile boolean failed;
-    /** 失败原因是"模型还没下载"——UI 要据此引导下载，而不是笼统报"朗读不可用" */
+    /** 失败原因是"模型还没安装"——UI 要据此引导安装，而不是笼统报"朗读不可用" */
     private volatile boolean modelMissing;
     private volatile boolean initStarted;
 
@@ -70,7 +70,7 @@ public class LocalVitsTts {
         return ready;
     }
 
-    /** 是否因为"模型没下载"而不可用（供 UI 引导下载） */
+    /** 是否因为"模型没下载"而不可用（供 UI 引导安装） */
     public boolean isModelMissing() {
         return modelMissing;
     }
@@ -104,7 +104,7 @@ public class LocalVitsTts {
             vits.setLexicon(TtsModelStore.lexiconPath(ctx, v));
             vits.setTokens(TtsModelStore.tokensPath(ctx, v));
             vits.setDataDir("");                    // 不需要 espeak-ng-data
-            vits.setDictDir(TtsModelStore.dictPath(ctx, v));   // piper 为空串，aishell3 是 jieba 词典
+            vits.setDictDir(TtsModelStore.dictPath(ctx, v));   // 小雅是 piper 单音色，这里为空串
             vits.setLengthScale(v.lengthScale);     // 略放慢，读告白比日常播报慢一点更动人
 
             OfflineTtsModelConfig model = new OfflineTtsModelConfig();

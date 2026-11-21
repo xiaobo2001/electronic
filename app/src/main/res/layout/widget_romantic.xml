@@ -4,15 +4,31 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_btn_bg"
-    android:gravity="center">
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="4dp">
+
+    <!-- 纪念日倒计时：由 RomanticWidgetProvider 每 24h 刷新；无纪念日时显示一句温柔话 -->
+    <TextView
+        android:id="@+id/widget_countdown"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:paddingHorizontal="6dp"
+        android:text="💗 一键浪漫"
+        android:textColor="#FFFFD9E8"
+        android:textSize="11sp" />
 
     <Button
         android:id="@+id/widget_btn"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:background="@null"
-        android:text="💖 一键浪漫"
+        android:text="放一场烟花"
         android:textColor="#FFFFD9E8"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:textStyle="bold" />
 </LinearLayout>

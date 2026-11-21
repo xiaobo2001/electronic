@@ -73,9 +73,6 @@ public class RomanticDialogs {
         /** 变声档（下标对应 TtsVoice.PITCH_NAMES） */
         void onTtsPitchPicked(int idx);
 
-        /** 多说话人音色：随机换一个声音 */
-        void onTtsSpeakerShuffle();
-
         /** 背景色（含写入 MMKV 与应用到根布局） */
         void onBgColorPicked(int color);
 
@@ -140,6 +137,32 @@ public class RomanticDialogs {
         /** 星空许愿：在 (x,y) 比例坐标处挂一颗星 */
         default void onWishAdded(String text, float x, float y) {
         }
+
+        // ===== 新增四项（都用 default，老实现方无需改动） =====
+
+        /** 告白回忆册：点某条重新演出其台词 */
+        default void onMemoryReplay(String lines) {
+        }
+
+        /** 告白回忆册：把某条做成情书长图 */
+        default void onMemoryToLetter(String lines) {
+        }
+
+        /** 情书长图：正文 + 收信人 + 署名 + 字体索引，生成并保存 */
+        default void onLoveLetterGenerate(String text, String herName, String myName, int fontIndex) {
+        }
+
+        /** 真人语音留声：开始录音 / 停止录音（true=开始） */
+        default void onVoiceRecord(boolean start) {
+        }
+
+        /** 真人语音留声：试听 / 删除（"play" / "delete"） */
+        default void onVoiceAction(String action) {
+        }
+
+        /** 默契暖场：答完 total 题、答对 correct 题，触发烟花并可选开演 */
+        default void onQuizFinished(int correct, int total) {
+        }
     }
 
     private static final String[] WEATHER_NAMES = {"关闭", "下雪 ❄", "樱花 🌸", "银杏 🍂"};
@@ -157,18 +180,30 @@ public class RomanticDialogs {
         this.cb = cb;
     }
 
-    /** 新手引导（#11新）：一次性，可从菜单重看 */
+    /** 新手引导：一次性两页（基础 + 情感玩法），可从菜单重看 */
     public void showGuide(boolean force) {
         if (!force && MMKV.defaultMMKV().decodeBool(MainActivity.KEY_GUIDE_SHOWN, false)) return;
         MMKV.defaultMMKV().encode(MainActivity.KEY_GUIDE_SHOWN, true);
         new UiGuard.SafeBuilder(ctx)
-                .setTitle("玩法速览")
-                .setMessage("🔥 点击屏幕：随机烟花绽放\n⏳ 长按屏幕蓄力：松开放中/大/超大全屏烟花\n"
-                        + "🏮 更多菜单：孔明灯模式、下雪天气、月亮星座、音乐律动\n"
-                        + "💖 顶级浪漫：三幕剧告白，结尾有应答时刻，可录制整场视频\n"
-                        + "🎬 演出中底部有控制条：可跳过当前句、暂停或结束\n"
-                        + "🎥 长按不再切纯净模式，纯净开关在更多菜单里")
-                .setPositiveButton("知道了", null)
+                .setTitle("玩法速览 1/2 · 基础")
+                .setMessage("🔥 点击屏幕：随机烟花绽放\n⏳ 长按蓄力：松开放中/大/超大全屏烟花\n"
+                        + "🏮 更多菜单：孔明灯、天气、月亮星座、音乐律动\n"
+                        + "💖 顶级浪漫：三幕剧告白 + 应答时刻，可录整场视频\n"
+                        + "🎬 演出中底部控制条：可跳过当前句、暂停或结束")
+                .setPositiveButton("下一页", (d, w) -> showGuidePage2())
+                .show();
+    }
+
+    private void showGuidePage2() {
+        new UiGuard.SafeBuilder(ctx)
+                .setTitle("玩法速览 2/2 · 让告白更像你")
+                .setMessage("🎙 真人语音留声：录一句真心话，告白第一句用你自己的声音念\n"
+                        + "💌 情书长图：写段话排成信纸长图，存相册直接发\n"
+                        + "📖 告白回忆册：每场演出自动留存，可回看重演\n"
+                        + "💞 默契暖场问答：告白前玩几题，答对越多烟花越热闹\n\n"
+                        + "这些都在「更多」菜单里。全程不联网，录音只存本机。\n"
+                        + "「隐私声明 / 权限说明」也在同一菜单，随时可查。")
+                .setPositiveButton("开始放烟花", null)
                 .show();
     }
 
@@ -303,7 +338,7 @@ public class RomanticDialogs {
                 "📱 只用系统内置引擎",
                 "🌟 只用离线音色（神经网络合成）",
                 "🔇 关闭朗读",
-                "🎭 音色与变声（" + TtsVoice.ALL.length + " 种可下载）",
+                "🎭 音色与变声（小雅 + 四档变声）",
                 "⚙ 系统语音设置"
         };
         new UiGuard.SafeBuilder(ctx).setTitle("台词朗读音色")
@@ -329,8 +364,9 @@ public class RomanticDialogs {
     }
 
     /**
-     * 音色包选择：三套独立音色，下了哪个用哪个，没下的现场下。
-     * 变声、多说话人换声音、清理入口也挂在这层。
+     * 音色与变声选择：内置音色「小雅」，装了就能用，没装的现场从资源解压。
+     * 变声档、清理入口也挂在这层。当前只保留这一套公认最好听的音色，
+     * 换听感用变声档即可，不必换模型。
      */
     public void showVoicePicker() {
         java.util.List<String> items = new java.util.ArrayList<>();
@@ -339,23 +375,15 @@ public class RomanticDialogs {
         for (TtsVoice v : TtsVoice.ALL) {
             String state;
             if (v == cur) state = "✓ 使用中";
-            else if (TtsModelStore.isReady(ctx, v)) state = "已下载";
-            else state = "下载 " + TtsModelStore.sizeText(v.totalBytes());
+            else if (TtsModelStore.isReady(ctx, v)) state = "已安装";
+            else state = "安装 " + TtsModelStore.sizeText(v.totalBytes());
             items.add(v.name + " · " + v.desc + "\n     " + state);
             voices.add(v);
         }
-        // 变声档：改音调不改时长，零下载
-        items.add("🎚 变声：" + TtsVoice.pitchName() + "（不用下载）");
+        // 变声档：改音调不改时长，零占用
+        items.add("🎚 变声：" + TtsVoice.pitchName() + "（不用安装）");
         final int pitchIdx = items.size() - 1;
-        // 多说话人包：换个 sid 就是一个新声音，不用重新下载
-        final int shuffleIdx;
-        if (cur.multiSpeaker() && TtsModelStore.isReady(ctx, cur)) {
-            items.add("🎲 随机换一个声音（当前 #" + TtsVoice.currentSpeaker() + "）");
-            shuffleIdx = items.size() - 1;
-        } else {
-            shuffleIdx = -1;
-        }
-        // 清理入口：只清当前选中的那套，别的一根手指头都不碰
+        // 清理入口：清掉内置音色，释放空间
         final int deleteIdx;
         if (TtsModelStore.isReady(ctx, cur)) {
             items.add("🗑 清理当前音色（" + cur.name + " · 释放 "
@@ -370,10 +398,6 @@ public class RomanticDialogs {
                     d.dismiss();
                     if (w == pitchIdx) {
                         showPitchPicker();
-                        return;
-                    }
-                    if (w == shuffleIdx) {
-                        cb.onTtsSpeakerShuffle();
                         return;
                     }
                     if (w == deleteIdx) {
@@ -393,9 +417,9 @@ public class RomanticDialogs {
                 .show();
     }
 
-    /** 变声档：基于已下载音色做音调变体，一份模型多种听感 */
+    /** 变声档：基于已安装音色做音调变体，一份模型多种听感 */
     public void showPitchPicker() {
-        new UiGuard.SafeBuilder(ctx).setTitle("🎚 变声（不额外下载）")
+        new UiGuard.SafeBuilder(ctx).setTitle("🎚 变声（不额外安装）")
                 .setSingleChoiceItems(TtsVoice.PITCH_NAMES, TtsVoice.currentPitch(),
                         (d, w) -> {
                             d.dismiss();
@@ -1052,5 +1076,259 @@ public class RomanticDialogs {
             cb.onWishAdded(text, x, y);
             dlg.dismiss();
         });
+    }
+
+    // ==================== 告白回忆册 ====================
+
+    /**
+     * 告白回忆册：按时间倒序列出每一次演出，点一条看详情（台词/结果/氛围），
+     * 详情里可重演或做成情书长图。数据由 {@link com.xiaobo.electronic.data.MemoryAlbumStore} 提供。
+     */
+    public void showMemoryAlbum() {
+        final java.util.List<com.xiaobo.electronic.data.MemoryAlbumStore.Entry> entries =
+                com.xiaobo.electronic.data.MemoryAlbumStore.load();
+        if (entries.isEmpty()) {
+            new UiGuard.SafeBuilder(ctx)
+                    .setTitle("📖 告白回忆册")
+                    .setMessage("还没有回忆。\n\n完整演一场告白（哪怕她选了「再想想」），\n这里就会自动记下当时的台词、月相和结果。")
+                    .setPositiveButton("知道了", null)
+                    .show();
+            return;
+        }
+        String[] labels = new String[entries.size() + 1];
+        for (int i = 0; i < entries.size(); i++) labels[i] = entries.get(i).title();
+        labels[entries.size()] = "🗑 清空回忆册";
+        new UiGuard.SafeBuilder(ctx)
+                .setTitle("📖 告白回忆册（共 " + entries.size() + " 次）")
+                .setItems(labels, (d, w) -> {
+                    if (w == entries.size()) {
+                        confirmClearMemories();
+                        return;
+                    }
+                    showMemoryDetail(entries.get(w));
+                })
+                .setNegativeButton("关闭", null)
+                .show();
+    }
+
+    private void showMemoryDetail(com.xiaobo.electronic.data.MemoryAlbumStore.Entry e) {
+        String phase = moonPhaseName(e.moonAge);
+        String body = (e.lines == null || e.lines.isEmpty() ? "（没有台词）" : e.lines)
+                + "\n\n" + (e.zodiac == null || e.zodiac.isEmpty() ? "" : e.zodiac + "座 · ")
+                + phase + " · " + e.result;
+        new UiGuard.SafeBuilder(ctx)
+                .setTitle("💗 " + e.title())
+                .setMessage(body)
+                .setPositiveButton("🔁 重演这一场", (d, w) -> cb.onMemoryReplay(e.lines))
+                .setNeutralButton("💌 做成情书", (d, w) -> cb.onMemoryToLetter(e.lines))
+                .setNegativeButton("返回", null)
+                .show();
+    }
+
+    private void confirmClearMemories() {
+        new UiGuard.SafeBuilder(ctx)
+                .setTitle("清空回忆册")
+                .setMessage("删掉所有告白记录？这个操作不可恢复。\n纪念日和剧本库不受影响。")
+                .setPositiveButton("清空", (d, w) -> {
+                    com.xiaobo.electronic.data.MemoryAlbumStore.clearAll();
+                    Toaster.showShort("回忆册已清空");
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private static String moonPhaseName(float age) {
+        if (age < 1.8f || age > 27.7f) return "新月";
+        if (age < 6.4f) return "娥眉月";
+        if (age < 8.4f) return "上弦月";
+        if (age < 13.5f) return "盈凸月";
+        if (age < 16.0f) return "满月";
+        if (age < 21.2f) return "亏凸月";
+        if (age < 23.2f) return "下弦月";
+        return "残月";
+    }
+
+    /** 生成情书时用当前输入预填：回忆册那条台词会作为 initialText 传进来 */
+    public void showLoveLetterInput(String initialText) {
+        View v = LayoutInflater.from(ctx).inflate(R.layout.dialog_love_letter, null);
+        TextInputEditText et = v.findViewById(R.id.et_letter);
+        if (initialText != null && !initialText.isEmpty()) et.setText(initialText);
+        AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
+                .setTitle("💌 情书长图")
+                .setView(v)
+                .show();
+        UiGuard.focusInput(dlg, et);
+        v.findViewById(R.id.btn_cancel).setOnClickListener(z -> dlg.dismiss());
+        v.findViewById(R.id.btn_confirm).setOnClickListener(z -> {
+            String text = et.getText() == null ? "" : et.getText().toString().trim();
+            if (text.isEmpty()) {
+                Toaster.showShort("写点什么再生成吧");
+                return;
+            }
+            // 字体让用户在生成前选一次
+            showFontPicker(() -> {
+                String hn = MMKV.defaultMMKV().decodeString("romantic_her_name", "");
+                String mn = MMKV.defaultMMKV().decodeString("romantic_my_name", "");
+                cb.onLoveLetterGenerate(text, hn, mn, FontKit.current());
+            });
+            dlg.dismiss();
+        });
+    }
+
+    // ==================== 真人语音留声 ====================
+
+    /**
+     * 留声管理：录一句 / 试听 / 重录 / 删除。
+     *
+     * <p><b>为什么改成按钮。</b>旧版用 {@code setItems} 列表，第一项"录一句真心话"
+     * 看起来像一行说明而不是按钮，用户反馈"找不到录音的按钮"。
+     * 现在把「🎙 现在开始录音」做成弹窗主按钮，位置固定、一眼可见。
+     */
+    public void showVoiceNoteDialog() {
+        boolean has = com.xiaobo.electronic.media.VoiceNote.exists(ctx);
+        long ms = has ? com.xiaobo.electronic.media.VoiceNote.durationMs(ctx) : 0;
+        String status = has
+                ? "已录好一句原声（约 " + (ms / 1000) + " 秒）。\n"
+                + "演出到台词阶段会自动播放你的原声，代替合成朗读。\n\n"
+                + "想重录就点下面第一个按钮，新录音会覆盖旧的。"
+                : "录一句真心话，告白时她听到的是你的声音，不是机器的。\n\n"
+                + "点下面的「🎙 现在开始录音」，说完点「■ 停止并保存」，最长 30 秒。\n"
+                + "录音只存这台手机，不联网、不上传。";
+        UiGuard.SafeBuilder b = new UiGuard.SafeBuilder(ctx);
+        b.setTitle("🎙 真人语音留声");
+        b.setMessage(status);
+        b.setPositiveButton(has ? "🎙 重新录一句" : "🎙 现在开始录音",
+                (d, w) -> cb.onVoiceRecord(true));
+        if (has) {
+            b.setNeutralButton("▶ 试听", (d, w) -> cb.onVoiceAction("play"));
+            b.setNegativeButton("🗑 删除录音", (d, w) -> cb.onVoiceAction("delete"));
+        } else {
+            b.setNegativeButton("关闭", null);
+        }
+        b.show();
+    }
+
+    // ==================== 默契暖场问答 ====================
+
+    /** 暖场问答：一题一题问，答完按正确数放烟花并回到这里 */
+    public void showQuiz() {
+        String hn = MMKV.defaultMMKV().decodeString("romantic_her_name", "");
+        final java.util.List<com.xiaobo.electronic.data.QuizData.Question> qs =
+                com.xiaobo.electronic.data.QuizData.make(hn);
+        askQuizQuestion(qs, 0, 0);
+    }
+
+    /**
+     * 单题交互：题目 + 四个选项按钮 + 显式的「下一题 →」。
+     *
+     * <p>旧版点完选项 120ms 自动弹下一题，界面上没有任何"切换"提示，
+     * 用户以为答完就结束了。现在选完答案会标出对错并解锁「下一题」按钮，
+     * 由用户自己点——看得见、点得到。
+     */
+    private void askQuizQuestion(final java.util.List<com.xiaobo.electronic.data.QuizData.Question> qs,
+                                 final int idx, final int correct) {
+        if (idx >= qs.size()) {
+            int verdict = correct;
+            new UiGuard.SafeBuilder(ctx)
+                    .setTitle("💞 默契结果")
+                    .setMessage(com.xiaobo.electronic.data.QuizData.verdict(verdict, qs.size())
+                            + "\n\n答对 " + verdict + " / " + qs.size() + " 题")
+                    .setPositiveButton("放烟花", (d, w) -> cb.onQuizFinished(verdict, qs.size()))
+                    .setNegativeButton("再来一次", (d, w) -> showQuiz())
+                    .show();
+            return;
+        }
+        final com.xiaobo.electronic.data.QuizData.Question q = qs.get(idx);
+        // 题库将来若改坏答案下标，也别让 UI 越界崩掉
+        final int answerIdx = (q.answer >= 0 && q.answer < q.options.length) ? q.answer : 0;
+        View v = LayoutInflater.from(ctx).inflate(R.layout.dialog_quiz, null);
+        ((TextView) v.findViewById(R.id.tv_quiz_progress))
+                .setText("第 " + (idx + 1) + " / " + qs.size() + " 题");
+
+        final int[] optIds = {R.id.btn_opt_0, R.id.btn_opt_1, R.id.btn_opt_2, R.id.btn_opt_3};
+        final com.google.android.material.button.MaterialButton[] opts =
+                new com.google.android.material.button.MaterialButton[optIds.length];
+        for (int i = 0; i < optIds.length; i++) {
+            opts[i] = v.findViewById(optIds[i]);
+            if (i < q.options.length) {
+                opts[i].setVisibility(View.VISIBLE);
+                opts[i].setText(q.options[i]);
+            } else {
+                opts[i].setVisibility(View.GONE);
+            }
+        }
+        final TextView feedback = v.findViewById(R.id.tv_quiz_feedback);
+        final com.google.android.material.button.MaterialButton btnNext =
+                v.findViewById(R.id.btn_quiz_next);
+        final com.google.android.material.button.MaterialButton btnSkip =
+                v.findViewById(R.id.btn_quiz_skip);
+
+        UiGuard.SafeBuilder sb = new UiGuard.SafeBuilder(ctx);
+        sb.setView(v);
+        sb.setCancelable(true);
+        final AlertDialog dlg = sb.show();
+        if (dlg == null) return;
+
+        final int[] picked = {-1};
+        for (int i = 0; i < q.options.length && i < opts.length; i++) {
+            final int oi = i;
+            opts[i].setOnClickListener(z -> {
+                if (picked[0] != -1) return;
+                picked[0] = oi;
+                final boolean ok = (oi == answerIdx);
+                for (com.google.android.material.button.MaterialButton b : opts) {
+                    b.setEnabled(false);
+                }
+                // 正确项标绿；选错时把自己标红，让答案一眼可辨
+                opts[answerIdx].setBackgroundTintList(
+                        android.content.res.ColorStateList.valueOf(0xFF2E7D32));
+                opts[answerIdx].setTextColor(0xFFFFFFFF);
+                if (!ok) {
+                    opts[oi].setBackgroundTintList(
+                            android.content.res.ColorStateList.valueOf(0xFF8E2A2A));
+                    opts[oi].setTextColor(0xFFFFFFFF);
+                }
+                feedback.setText(ok
+                        ? "✅ 答对啦！点右下角「" + (idx == qs.size() - 1 ? "看结果 🎆" : "下一题 →") + "」继续"
+                        : "💗 正确答案是「" + q.options[answerIdx] + "」，点右下角「"
+                        + (idx == qs.size() - 1 ? "看结果 🎆" : "下一题 →") + "」继续");
+                feedback.setVisibility(View.VISIBLE);
+                final int nextCorrect = correct + (ok ? 1 : 0);
+                btnNext.setText(idx == qs.size() - 1 ? "看结果 🎆" : "下一题 →");
+                btnNext.setEnabled(true);
+                btnNext.setOnClickListener(n -> {
+                    dlg.dismiss();
+                    new android.os.Handler(android.os.Looper.getMainLooper())
+                            .postDelayed(() -> askQuizQuestion(qs, idx + 1, nextCorrect), 150);
+                });
+            });
+        }
+        btnSkip.setOnClickListener(z -> {
+            dlg.dismiss();
+            new android.os.Handler(android.os.Looper.getMainLooper())
+                    .postDelayed(() -> askQuizQuestion(qs, idx + 1, correct), 150);
+        });
+    }
+
+    // ==================== 隐私声明 / 权限说明 ====================
+
+    /** 隐私声明：完整文案见 {@link com.xiaobo.electronic.data.LegalText#PRIVACY} */
+    public void showPrivacyPolicy() {
+        showLegalDialog("🔒 隐私声明", com.xiaobo.electronic.data.LegalText.PRIVACY);
+    }
+
+    /** 权限说明：逐条列出每个权限的用途与是否联网 */
+    public void showPermissions() {
+        showLegalDialog("🔐 权限说明", com.xiaobo.electronic.data.LegalText.PERMISSIONS);
+    }
+
+    private void showLegalDialog(String title, String text) {
+        View v = LayoutInflater.from(ctx).inflate(R.layout.dialog_legal_text, null);
+        ((TextView) v.findViewById(R.id.tv_legal)).setText(text);
+        AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
+                .setTitle(title)
+                .setView(v)
+                .show();
+        v.findViewById(R.id.btn_legal_close).setOnClickListener(z -> dlg.dismiss());
     }
 }

@@ -20,16 +20,19 @@ import com.xiaobo.electronic.speech.TtsVoice;
  */
 public class TtsModelStoreTest {
 
-    /** 三套音色的实际字节数（与 HuggingFace 仓库逐一核对过） */
+    /** 小雅的实际字节数（与内置整包逐一核对过） */
     private static final long XIAOYA_TOTAL = 20_930_051L;
-    private static final long CHAOWEN_TOTAL = 20_930_052L;
-    private static final long AISHELL3_TOTAL = 55_891_146L;
 
     @Test
     public void voicePacks_manifestMatchesSizes() {
         assertEquals(XIAOYA_TOTAL, TtsVoice.XIAOYA.totalBytes());
-        assertEquals(CHAOWEN_TOTAL, TtsVoice.CHAOWEN.totalBytes());
-        assertEquals(AISHELL3_TOTAL, TtsVoice.AISHELL3.totalBytes());
+    }
+
+    /** 只保留一套公认最好听的音色 */
+    @Test
+    public void voicePacks_onlyXiaoya() {
+        assertEquals(1, TtsVoice.ALL.length);
+        assertEquals(TtsVoice.XIAOYA, TtsVoice.ALL[0]);
     }
 
     /** 每套音色：文件数与体积数必须一一对应 */
@@ -48,7 +51,8 @@ public class TtsModelStoreTest {
             assertTrue("音色 id 重复：" + v.id, ids.add(v.id));
         }
         assertEquals(TtsVoice.XIAOYA, TtsVoice.byId("xiaoya"));
-        assertEquals(TtsVoice.AISHELL3, TtsVoice.byId("aishell3"));
+        assertNull(TtsVoice.byId("chaowen"));
+        assertNull(TtsVoice.byId("aishell3"));
         assertNull(TtsVoice.byId("no-such-voice"));
         assertNotNull(TtsVoice.byId(null) == null ? TtsVoice.XIAOYA : null);
     }
@@ -63,12 +67,10 @@ public class TtsModelStoreTest {
         }
     }
 
-    /** 多说话人包必须带词典目录（jieba），piper 两个不需要 */
+    /** 小雅是 piper 单音色，不需要 jieba 分词词典 */
     @Test
-    public void dictDir_onlyForMultiSpeaker() {
+    public void dictDir_piperNeedsNone() {
         assertEquals("", TtsVoice.XIAOYA.dictDir);
-        assertEquals("", TtsVoice.CHAOWEN.dictDir);
-        assertEquals("dict", TtsVoice.AISHELL3.dictDir);
     }
 
     /** 变声档：数量、范围、首档必须是原声（1.0） */
