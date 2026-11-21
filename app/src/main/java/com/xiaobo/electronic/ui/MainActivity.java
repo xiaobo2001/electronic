@@ -4099,7 +4099,7 @@ public class MainActivity extends AppCompatActivity {
         setMenuValue(menuView, R.id.tv_qr_code, "📷 生成二维码给她扫", "她扫一下就能看");
         setMenuValue(menuView, R.id.tv_import_share_code, "📥 导入浪漫分享码", "读剪贴板");
         setMenuValue(menuView, R.id.tv_export_gif, "🎞 视频转 GIF 动图", "先导出一段视频");
-        setMenuValue(menuView, R.id.tv_set_wallpaper, "📱 设置为桌面壁纸", "到壁纸列表里选它");
+        setMenuValue(menuView, R.id.tv_set_wallpaper, "📱 设置为桌面壁纸", "直接打开预览页");
         setMenuValue(menuView, R.id.tv_guide, "❓ 玩法说明", "第一次用先看");
     }
 
@@ -4366,26 +4366,14 @@ public class MainActivity extends AppCompatActivity {
      * 用户只需再点一次「设置壁纸」。第一次会说明这一步，之后直接跳转。
      */
     private void goSetLiveWallpaper() {
+        // 系统不允许第三方 App 静默设置动态壁纸，"一键"的极限就是直达系统预览页。
+        // 旧版首次会弹一个两项列表说明，而且只有点「以后直接跳转」才记住标记——
+        // 走正常路径的用户每次点菜单都会再弹一次，看起来像"点了只弹个窗"。
+        // 现在直接跳转，第一次用一句 Toast 说明下一步即可。
         boolean guided = MMKV.defaultMMKV().decodeBool(KEY_WALLPAPER_GUIDED, false);
         if (!guided) {
-            String[] items = {
-                    "▶ 打开系统预览页（下一步点「设置壁纸」）",
-                    "以后直接跳转，不再显示说明"
-            };
-            new UiGuard.SafeBuilder(this)
-                    .setTitle("设为动态壁纸")
-                    .setMessage("桌面和锁屏会一直放着烟花。\n"
-                            + "系统会打开预览页，点一下「设置壁纸」就生效。\n"
-                            + "（安卓不允许 App 直接替你设置，这一步必须由你确认）")
-                    .setItems(items, (d, w) -> {
-                        d.dismiss();
-                        if (w == 1) {
-                            MMKV.defaultMMKV().encode(KEY_WALLPAPER_GUIDED, true);
-                        }
-                        openLiveWallpaperPreview();
-                    })
-                    .show();
-            return;
+            MMKV.defaultMMKV().encode(KEY_WALLPAPER_GUIDED, true);
+            Toaster.showShort("在系统预览页点「设置壁纸」即可生效");
         }
         openLiveWallpaperPreview();
     }
