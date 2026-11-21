@@ -33,6 +33,7 @@ public class AnniversaryWidgetProvider extends BaseActionWidget {
 
     @Override
     int[][] buttons() {
-        return new int[][]{{R.id.widget_btn, 0}};
+        // 布局注释承诺"点整块进入告白"，只绑按钮会让大部分区域点了没反应
+        return new int[][]{{R.id.widget_root, 0}, {R.id.widget_btn, 0}};
     }
 }
