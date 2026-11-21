@@ -1,187 +1,180 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  顶级浪漫设置。
+  横屏可视高度只有 360dp 上下，而 AlertDialog 的内容区是 wrap_content 且不会自己收缩——
+  旧版把「开始表演」放在内容最底部，屏幕一矮这个按钮就落到屏幕外，
+  用户看到的就是"弹窗没有确认按钮"。
+  现在「开始表演 / 取消」走系统按钮栏（固定在窗口底部，永远可见），
+  内容区由 UiGuard 统一限高后滚动。注意：不要在 ScrollView 上写 android:maxHeight，
+  ScrollView 不支持该属性，写了等于没写。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:maxHeight="440dp"
-    android:scrollbars="none">
+    android:orientation="vertical"
+    android:paddingHorizontal="8dp"
+    android:paddingVertical="2dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="4dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/til_her_name"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="她的名字（贯穿全场）">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_her_name"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:maxLines="1"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/til_my_name"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:hint="你的名字（卡片落款）">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_my_name"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:maxLines="1"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-        </LinearLayout>
+        android:orientation="horizontal">
 
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/til_lines"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="告白台词（每行一句，最多十句，写满更有仪式感）">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_lines"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="top"
-                android:inputType="textMultiLine"
-                android:maxLines="6"
-                android:minLines="3"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_pick_preset"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="💌 挑一套现成文案（7 大场景）"
-            android:textSize="13sp" />
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/til_seconds"
+            android:id="@+id/til_her_name"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:hint="倒计时秒数（1-60，求婚可设长倒数）">
+            android:layout_weight="1"
+            android:hint="她的名字（贯穿全场）">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_seconds"
+                android:id="@+id/et_her_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="number"
+                android:inputType="text"
+                android:maxLines="1"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <TextView
-            android:id="@+id/tv_volume_label"
-            android:layout_width="match_parent"
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_my_name"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:paddingStart="4dp"
-            android:text="背景音乐音量 70%"
-            android:textColor="#B3FFFFFF"
-            android:textSize="12sp" />
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:hint="你的名字（卡片落款）">
 
-        <com.google.android.material.slider.Slider
-            android:id="@+id/slider_volume"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:stepSize="5"
-            android:valueFrom="0"
-            android:valueTo="100"
-            app:labelBehavior="gone" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_pick_bgm"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="🎵 背景音乐：内置浪漫曲（点击换歌）"
-            android:textSize="13sp" />
-
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cb_record_full"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:minHeight="40dp"
-            android:text="同步录制整场表白视频（录到结束）"
-            android:textColor="#E6FFFFFF"
-            android:textSize="13sp" />
-
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cb_rehearsal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="40dp"
-            android:text="🎭 彩排模式（跳过应答与庆祝，自己先看效果）"
-            android:textColor="#FFD9E8"
-            android:textSize="13sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_gen_code"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_my_name"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="生成分享码"
-                android:textSize="13sp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_import_code"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="导入分享码"
-                android:textSize="13sp" />
-        </LinearLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_start"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:backgroundTint="#FFE91E63"
-            android:text="开始表演 💖"
-            android:textSize="15sp"
-            app:cornerRadius="24dp" />
-
+                android:inputType="text"
+                android:maxLines="1"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
     </LinearLayout>
-</ScrollView>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/til_lines"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="告白台词（每行一句，最多十句，写满更有仪式感）">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_lines"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:inputType="textMultiLine"
+            android:maxLines="6"
+            android:minLines="3"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_pick_preset"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="💌 挑一套现成文案（7 大场景）"
+        android:textSize="13sp" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/til_seconds"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:hint="倒计时秒数（1-60，求婚可设长倒数）">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_seconds"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <TextView
+        android:id="@+id/tv_volume_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:paddingStart="4dp"
+        android:text="背景音乐音量 70%"
+        android:textColor="#B3FFFFFF"
+        android:textSize="12sp" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/slider_volume"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stepSize="5"
+        android:valueFrom="0"
+        android:valueTo="100"
+        app:labelBehavior="gone" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_pick_bgm"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="🎵 背景音乐：内置浪漫曲（点击换歌）"
+        android:textSize="13sp" />
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/cb_record_full"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:minHeight="40dp"
+        android:text="同步录制整场表白视频（录到结束）"
+        android:textColor="#E6FFFFFF"
+        android:textSize="13sp" />
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/cb_rehearsal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="40dp"
+        android:text="🎭 彩排模式（跳过应答与庆祝，自己先看效果）"
+        android:textColor="#FFD9E8"
+        android:textSize="13sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_gen_code"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="生成分享码"
+            android:textSize="13sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_import_code"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="导入分享码"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+</LinearLayout>

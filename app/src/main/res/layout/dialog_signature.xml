@@ -18,8 +18,8 @@
     <com.xiaobo.electronic.view.SignaturePadView
         android:id="@+id/pad"
         android:layout_width="match_parent"
-        android:layout_height="170dp"
-        android:layout_marginTop="8dp"
+        android:layout_height="110dp"
+        android:layout_marginTop="6dp"
         android:background="@drawable/bg_signature_pad" />
 
     <LinearLayout

@@ -543,12 +543,14 @@ public class RomanticDialogs {
         SliderSafe.setValue(slider, SoundFx.volume() * 100f);
         tvVol.setText("音量  " + Math.round(SoundFx.volume() * 100) + "%");
 
+        // 【修复】试听/好了改走系统按钮栏，横屏下不会被内容挤出屏幕
         AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
                 .setTitle("🔔 音效与触感")
                 .setView(v)
+                .setNeutralButton("试听一声", (d, w) -> SoundFx.preview())
+                .setPositiveButton("好了", null)
                 .show();
-        v.findViewById(R.id.btn_close).setOnClickListener(x -> dlg.dismiss());
-        v.findViewById(R.id.btn_preview).setOnClickListener(x -> SoundFx.preview());
+        if (dlg == null) return;
         boxSound.setOnCheckedChangeListener((b, on) -> {
             SoundFx.setEnabled(on);
             cb.onSoundFxChanged();
@@ -742,15 +744,18 @@ public class RomanticDialogs {
         }
         View v = LayoutInflater.from(ctx).inflate(R.layout.dialog_qr_code, null);
         ((ImageView) v.findViewById(R.id.img_qr)).setImageBitmap(bmp);
-        AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
+        // 【修复】保存/关闭改走系统按钮栏：二维码加提示文字在横屏下容易超出可视高度，
+        // 画在内容里的按钮会被挤出屏幕（"弹窗没有按钮"）。
+        new UiGuard.SafeBuilder(ctx)
                 .setTitle("📷 " + (title == null ? "扫码领取这场烟花" : title))
+                .setMessage("让她用相机或微信扫一扫，就能拿到这段分享码")
                 .setView(v)
+                .setPositiveButton("保存到相册", (d, w) -> {
+                    Uri uri = QrCodeUtil.saveToGallery(ctx, bmp, title == null ? "firework" : title);
+                    Toaster.showShort(uri == null ? "保存失败" : "已保存到相册（Pictures/烟花）");
+                })
+                .setNegativeButton("关闭", null)
                 .show();
-        v.findViewById(R.id.btn_close_qr).setOnClickListener(x -> dlg.dismiss());
-        v.findViewById(R.id.btn_save_qr).setOnClickListener(x -> {
-            Uri uri = QrCodeUtil.saveToGallery(ctx, bmp, title == null ? "firework" : title);
-            Toaster.showShort(uri == null ? "保存失败" : "已保存到相册（Pictures/烟花）");
-        });
     }
 
     private static List<String> splitLines(String lines) {
@@ -811,14 +816,21 @@ public class RomanticDialogs {
         final String[] lines = {presetLines == null ? cb.currentLines() : presetLines};
         hint.setText("将使用：" + firstLine(lines[0]));
 
+        // 【修复】日期/时间选择器很占高度，横屏下画在内容里的按钮会被挤到屏幕外。
+        // 「定好这个时间 / 取消」改走系统按钮栏，固定在窗口底部。
         AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
                 .setTitle("⏰ 定一个时间")
                 .setView(v)
+                .setPositiveButton("定好这个时间", null)
+                .setNegativeButton("取消", null)
                 .show();
+        if (dlg == null) return;
         v.findViewById(R.id.btn_pick_script).setOnClickListener(x ->
                 pickScriptForSchedule(name, lines, hint));
-        v.findViewById(R.id.btn_cancel).setOnClickListener(x -> dlg.dismiss());
-        v.findViewById(R.id.btn_save).setOnClickListener(x -> {
+        // 时间已过去时要留在弹窗里改，所以自己接管 positive 的点击
+        // （系统按钮默认"点一下就关"，会把用户刚选的时间弄丢）
+        android.widget.Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (ok != null) ok.setOnClickListener(x -> {
             Calendar cal = Calendar.getInstance();
             cal.set(dp.getYear(), dp.getMonth(), dp.getDayOfMonth(), tp.getHour(), tp.getMinute(), 0);
             cal.set(Calendar.MILLISECOND, 0);
@@ -885,13 +897,21 @@ public class RomanticDialogs {
                 FireworkTuning.MIN_TRAIL, FireworkTuning.MAX_TRAIL));
         tDensity.setText("粒子密度  " + pct(sDensity.getValue()));
         tSpeed.setText("爆炸速度  " + pct(sSpeed.getValue()));
-        tFall.setText("下坠感  " + pct(sFall.getValue()) + "（越大越快坠下）");
+        tFall.setText("下坠感  " + pct(sFall.getValue()));
         tTrail.setText("拖尾长度  " + pct(sTrail.getValue()));
 
+        // 【修复】布局改成 2×2 排布后，「好了」走系统按钮栏，
+        // 横屏下再怎么调也不会把按钮挤出屏幕
         AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
                 .setTitle("🎛 烟花手感")
+                .setMessage("调完点「放一朵看看」，不满意就「恢复默认」")
                 .setView(v)
+                .setPositiveButton("好了", null)
                 .show();
+        if (dlg == null) return;
+        // 预览期间要临时禁用「好了」：真按钮在系统按钮栏里，拿不到布局里的引用
+        final android.widget.Button sysDone =
+                dlg.getButton(AlertDialog.BUTTON_POSITIVE);
         // 滑块拖动时不重建烟花池：手指每动一帧都整池重建会明显掉帧，
         // 而且中间那些值用户根本不看。改成只写参数 + 更新标签，松手才重建一次。
         sDensity.addOnChangeListener((s, val, fromUser) -> {
@@ -907,7 +927,7 @@ public class RomanticDialogs {
         sFall.addOnChangeListener((s, val, fromUser) -> {
             FireworkTuning.setFall(fromSlider(val,
                     FireworkTuning.MIN_FALL, FireworkTuning.MAX_FALL));
-            tFall.setText("下坠感  " + pct(val) + "（越大越快坠下）");
+            tFall.setText("下坠感  " + pct(val));
         });
         sTrail.addOnChangeListener((s, val, fromUser) -> {
             FireworkTuning.setTrail(fromSlider(val,
@@ -942,7 +962,7 @@ public class RomanticDialogs {
             previewing[0] = true;
             btnPreview.setText("放着呢…");
             v.findViewById(R.id.btn_reset).setEnabled(false);
-            v.findViewById(R.id.btn_done).setEnabled(false);
+            if (sysDone != null) sysDone.setEnabled(false);
             btnPreview.setEnabled(false);        // 透明期看不见，防误触
 
             if (decor != null && win != null) {
@@ -971,7 +991,7 @@ public class RomanticDialogs {
                 if (restore[0] != null) restore[0].run();
                 btnPreview.setText("放一朵看看");
                 v.findViewById(R.id.btn_reset).setEnabled(true);
-                v.findViewById(R.id.btn_done).setEnabled(true);
+                if (sysDone != null) sysDone.setEnabled(true);
                 btnPreview.setEnabled(true);
             }, Math.max(1200L, ms));
         });
@@ -981,7 +1001,6 @@ public class RomanticDialogs {
             ui.removeCallbacksAndMessages(null);   // 别在已销毁的 window 上做还原动画
         });
 
-        v.findViewById(R.id.btn_done).setOnClickListener(x -> dlg.dismiss());
     }
 
     /** 滑块松手（或点选落定）时才执行：调参的重活都挂在这里，拖动过程不打扰。 */
@@ -1198,14 +1217,18 @@ public class RomanticDialogs {
         AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
                 .setTitle("➕ 新增纪念日")
                 .setView(v)
+                .setPositiveButton("添加", null)
+                .setNegativeButton("取消", null)
                 .show();
         if (dlg == null) return;
         // 弹窗展示后再 init：spinner 模式的 DatePicker 在部分 ROM 上需要已 attach
         java.util.Calendar now = java.util.Calendar.getInstance();
         dp.init(now.get(java.util.Calendar.YEAR), now.get(java.util.Calendar.MONTH),
                 now.get(java.util.Calendar.DAY_OF_MONTH), null);
-        v.findViewById(R.id.btn_anniv_cancel).setOnClickListener(z -> dlg.dismiss());
-        v.findViewById(R.id.btn_anniv_save).setOnClickListener(z -> {
+        // 日期选择器很高，横屏下按钮画在内容里会被挤出屏幕；
+        // 「添加」走系统按钮栏。名称为空时要留在弹窗里补，所以自己接管点击。
+        android.widget.Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (ok != null) ok.setOnClickListener(z -> {
             String label = etLabel.getText() == null ? "" : etLabel.getText().toString().trim();
             if (label.isEmpty()) {
                 Toaster.showShort("给它起个名字吧，比如「她的生日」");
@@ -1309,16 +1332,25 @@ public class RomanticDialogs {
             }
         }
         final TextView feedback = v.findViewById(R.id.tv_quiz_feedback);
-        final com.google.android.material.button.MaterialButton btnNext =
-                v.findViewById(R.id.btn_quiz_next);
-        final com.google.android.material.button.MaterialButton btnSkip =
-                v.findViewById(R.id.btn_quiz_skip);
 
+        // 【修复】「跳过 / 下一题」改用系统按钮栏。
+        // 横屏可视高度只有 360dp 上下，按钮画在内容里会被挤到屏幕外；
+        // 系统按钮栏固定在窗口底部，题目再长也点得到。
+        final boolean last = (idx == qs.size() - 1);
         UiGuard.SafeBuilder sb = new UiGuard.SafeBuilder(ctx);
         sb.setView(v);
         sb.setCancelable(true);
+        sb.setNegativeButton("跳过本题", (d, w) ->
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(() -> askQuizQuestion(qs, idx + 1, correct), 150));
+        sb.setPositiveButton(last ? "看结果 🎆" : "下一题 →", null);
         final AlertDialog dlg = sb.show();
         if (dlg == null) return;
+        final android.widget.Button sysNext =
+                dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE);
+        if (sysNext != null) {
+            sysNext.setEnabled(false);   // 选完答案才解锁
+        }
 
         final int[] picked = {-1};
         for (int i = 0; i < q.options.length && i < opts.length; i++) {
@@ -1345,20 +1377,16 @@ public class RomanticDialogs {
                         + (idx == qs.size() - 1 ? "看结果 🎆" : "下一题 →") + "」继续");
                 feedback.setVisibility(View.VISIBLE);
                 final int nextCorrect = correct + (ok ? 1 : 0);
-                btnNext.setText(idx == qs.size() - 1 ? "看结果 🎆" : "下一题 →");
-                btnNext.setEnabled(true);
-                btnNext.setOnClickListener(n -> {
-                    dlg.dismiss();
-                    new android.os.Handler(android.os.Looper.getMainLooper())
-                            .postDelayed(() -> askQuizQuestion(qs, idx + 1, nextCorrect), 150);
-                });
+                if (sysNext != null) {
+                    sysNext.setEnabled(true);
+                    sysNext.setOnClickListener(n -> {
+                        dlg.dismiss();
+                        new android.os.Handler(android.os.Looper.getMainLooper())
+                                .postDelayed(() -> askQuizQuestion(qs, idx + 1, nextCorrect), 150);
+                    });
+                }
             });
         }
-        btnSkip.setOnClickListener(z -> {
-            dlg.dismiss();
-            new android.os.Handler(android.os.Looper.getMainLooper())
-                    .postDelayed(() -> askQuizQuestion(qs, idx + 1, correct), 150);
-        });
     }
 
     // ==================== 隐私声明 / 权限说明 ====================
@@ -1376,10 +1404,11 @@ public class RomanticDialogs {
     private void showLegalDialog(String title, String text) {
         View v = LayoutInflater.from(ctx).inflate(R.layout.dialog_legal_text, null);
         ((TextView) v.findViewById(R.id.tv_legal)).setText(text);
-        AlertDialog dlg = new UiGuard.SafeBuilder(ctx)
+        // 「我知道了」走系统按钮栏：正文再长也不会把按钮顶到屏幕外
+        new UiGuard.SafeBuilder(ctx)
                 .setTitle(title)
                 .setView(v)
+                .setPositiveButton("我知道了", null)
                 .show();
-        v.findViewById(R.id.btn_legal_close).setOnClickListener(z -> dlg.dismiss());
     }
 }

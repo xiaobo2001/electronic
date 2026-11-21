@@ -1,28 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   默契问答：一屏完成「看题 → 选答案 → 看结果 → 点下一题」。
-  旧版用系统列表弹窗，点完选项 120ms 自动弹下一题，用户看不到任何"切换"入口，
-  以为答完就结束了。现在改成显式的「下一题 →」按钮，选完答案才可点。
+  「跳过本题 / 下一题 →」走系统按钮栏：横屏可视高度只有 360dp 上下，
+  按钮画在内容里会被挤到屏幕外（用户反馈过"找不到切换的方法"），
+  系统按钮栏固定在窗口底部，内容再高也在。
 -->
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:fillViewport="true"
-    android:scrollbars="vertical">
-
-<LinearLayout
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="20dp"
-    android:paddingTop="4dp"
-    android:paddingBottom="8dp">
+    android:paddingHorizontal="8dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
 
     <TextView
         android:id="@+id/tv_quiz_progress"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="第 1 / 4 题"
         android:textColor="#FF8899AA"
         android:textSize="12sp" />
 
@@ -30,17 +24,17 @@
         android:id="@+id/tv_quiz_question"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:lineSpacingExtra="4dp"
+        android:layout_marginTop="4dp"
+        android:lineSpacingExtra="3dp"
         android:textColor="#FFFFFFFF"
-        android:textSize="18sp"
+        android:textSize="17sp"
         android:textStyle="bold" />
 
     <LinearLayout
         android:id="@+id/ll_quiz_options"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="8dp"
         android:orientation="vertical">
 
         <com.google.android.material.button.MaterialButton
@@ -49,78 +43,52 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="start|center_vertical"
-            android:minHeight="48dp"
+            android:minHeight="42dp"
             android:textAllCaps="false"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_opt_1"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:gravity="start|center_vertical"
-            android:minHeight="48dp"
+            android:minHeight="42dp"
             android:textAllCaps="false"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_opt_2"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:gravity="start|center_vertical"
-            android:minHeight="48dp"
+            android:minHeight="42dp"
             android:textAllCaps="false"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_opt_3"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:gravity="start|center_vertical"
-            android:minHeight="48dp"
+            android:minHeight="42dp"
             android:textAllCaps="false"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/tv_quiz_feedback"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
         android:lineSpacingExtra="3dp"
         android:textColor="#FFFFD700"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:visibility="gone" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:gravity="end|center_vertical"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_quiz_skip"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="跳过本题"
-            android:textAllCaps="false" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_quiz_next"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:enabled="false"
-            android:text="下一题 →"
-            android:textAllCaps="false" />
-    </LinearLayout>
 </LinearLayout>
-
-</ScrollView>

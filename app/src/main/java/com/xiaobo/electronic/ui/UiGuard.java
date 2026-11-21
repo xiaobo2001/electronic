@@ -74,6 +74,50 @@ public final class UiGuard {
         return true;
     }
 
+    /** 内容区之外还要留给标题栏、底部按钮栏和窗口边距的高度（dp） */
+    private static final int BODY_RESERVE_DP = 168;
+
+    /** 内容区最低也要留这么多（dp），压太狠等于把字全藏起来 */
+    private static final int BODY_MIN_DP = 140;
+
+    /**
+     * 把弹窗的内容区压到"屏幕装得下"的高度，让里面的 ScrollView 真正能滚。
+     *
+     * <p>这个 App 固定横屏，可视高度只有 360dp 上下；而 AlertDialog 给自定义内容的
+     * 区域是 {@code wrap_content}，外层不会自己收缩——内容一高，整个窗口就比屏幕还高，
+     * 底部那排按钮直接落在屏幕外。用户看到的就是"弹窗没有确认/取消按钮"，
+     * 而且因为窗口比屏幕高，里面的 ScrollView 还以为自己空间够，怎么划都不动。
+     *
+     * <p>压到 {@code 屏高 - 标题/按钮预留} 之后：窗口回到屏幕内、内容可以滚、按钮可见。
+     */
+    public static void limitBodyHeight(View body) {
+        if (body == null) return;
+        clampBody(body, 0);
+    }
+
+    private static void clampBody(View body, int attempt) {
+        body.post(() -> {
+            try {
+                if (body.getHeight() <= 0) {
+                    // 还没测量完，再等一帧；最多重试 3 次，别无限 post
+                    if (attempt < 3) body.postDelayed(() -> clampBody(body, attempt + 1), 60);
+                    return;
+                }
+                android.util.DisplayMetrics dm = body.getResources().getDisplayMetrics();
+                int max = dm.heightPixels - (int) (BODY_RESERVE_DP * dm.density);
+                int floor = (int) (BODY_MIN_DP * dm.density);
+                if (max < floor) max = floor;
+                if (body.getHeight() <= max) return;
+                android.view.ViewGroup.LayoutParams lp = body.getLayoutParams();
+                if (lp == null) return;
+                lp.height = max;
+                body.setLayoutParams(lp);
+            } catch (Throwable ignored) {
+                // 高度压不下来也不该把弹窗搞崩，保持原样即可
+            }
+        });
+    }
+
     /** 判定一次点击是否有效（顺便记下时间），无效说明是连点，调用方直接丢弃 */
     public static boolean tap() {
         long now = android.os.SystemClock.elapsedRealtime();
@@ -162,6 +206,11 @@ public final class UiGuard {
                 }
             }
             track(d);
+            // 【统一修复】内容区限高：横屏可视高度只有 360dp 上下，不限高的话
+            // 弹窗会比屏幕还高，底部的「确定 / 取消」直接被裁到屏幕外。
+            // mtrl_alert_dialog 自带一个 NestedScrollView 包住标题下的内容，
+            // 压住它就能让内容滚起来、窗口回到屏幕内。
+            limitBodyHeight(d.findViewById(com.google.android.material.R.id.scrollView));
             return d;
         }
     }

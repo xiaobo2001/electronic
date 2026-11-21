@@ -1,125 +1,152 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 烟花手感调参：密度 / 速度 / 下坠感 / 拖尾 -->
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  烟花手感调参：密度 / 速度 / 下坠感 / 拖尾。
+  横屏可视高度只有 360dp 上下，四个滑块竖排 + 按钮行会超出屏幕，
+  按钮被裁掉（用户反馈"弹窗没有确认按钮"）。现在改成 2×2 排布，
+  操作行放最上面，「好了」走系统按钮栏，怎么都点得到。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:scrollbars="none">
+    android:orientation="vertical"
+    android:paddingHorizontal="18dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="22dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="4dp">
+        android:gravity="center"
+        android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/tv_density_label"
-            android:layout_width="match_parent"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_reset"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="粒子密度  35%"
-            android:textColor="#FFD700"
-            android:textSize="13sp" />
+            android:minHeight="40dp"
+            android:text="恢复默认" />
 
-        <!-- 初值必须是 valueFrom + n×stepSize 的刻度值：写 33.0 会在布局阶段直接崩 -->
-        <com.google.android.material.slider.Slider
-            android:id="@+id/slider_density"
-            android:layout_width="match_parent"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_preview"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:stepSize="5.0"
-            android:value="35.0"
-            android:valueFrom="0.0"
-            android:valueTo="100.0" />
+            android:layout_marginStart="10dp"
+            android:minHeight="40dp"
+            android:text="放一朵看看" />
+    </LinearLayout>
 
-        <TextView
-            android:id="@+id/tv_speed_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="爆炸速度  40%"
-            android:textColor="#FFD700"
-            android:textSize="13sp" />
-
-        <com.google.android.material.slider.Slider
-            android:id="@+id/slider_speed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:stepSize="5.0"
-            android:value="40.0"
-            android:valueFrom="0.0"
-            android:valueTo="100.0" />
-
-        <TextView
-            android:id="@+id/tv_fall_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="下坠感  40%（越大越快坠下）"
-            android:textColor="#FFD700"
-            android:textSize="13sp" />
-
-        <com.google.android.material.slider.Slider
-            android:id="@+id/slider_fall"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:stepSize="5.0"
-            android:value="40.0"
-            android:valueFrom="0.0"
-            android:valueTo="100.0" />
-
-        <TextView
-            android:id="@+id/tv_trail_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="拖尾长度  35%"
-            android:textColor="#FFD700"
-            android:textSize="13sp" />
-
-        <com.google.android.material.slider.Slider
-            android:id="@+id/slider_trail"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:stepSize="5.0"
-            android:value="35.0"
-            android:valueFrom="0.0"
-            android:valueTo="100.0" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:lineSpacingExtra="2dp"
-            android:text="调完点「放一朵看看」，不满意就「恢复默认」。\n库里的重力是写死的，这里用滞空时长近似出下坠感。"
-            android:textColor="#8899AA"
-            android:textSize="11sp" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:orientation="horizontal">
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:gravity="center"
-            android:orientation="horizontal">
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_reset"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/tv_density_label"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="恢复默认" />
+                android:text="粒子密度  35%"
+                android:textColor="#FFD700"
+                android:textSize="12sp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_preview"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="wrap_content"
+            <!-- 初值必须是 valueFrom + n×stepSize 的刻度值：写 33.0 会在布局阶段直接崩 -->
+            <com.google.android.material.slider.Slider
+                android:id="@+id/slider_density"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="放一朵看看" />
+                android:stepSize="5.0"
+                android:value="35.0"
+                android:valueFrom="0.0"
+                android:valueTo="100.0" />
+        </LinearLayout>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_done"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_speed_label"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="好了" />
+                android:text="爆炸速度  40%"
+                android:textColor="#FFD700"
+                android:textSize="12sp" />
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/slider_speed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stepSize="5.0"
+                android:value="40.0"
+                android:valueFrom="0.0"
+                android:valueTo="100.0" />
         </LinearLayout>
     </LinearLayout>
-</ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_fall_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="下坠感  40%"
+                android:textColor="#FFD700"
+                android:textSize="12sp" />
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/slider_fall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stepSize="5.0"
+                android:value="40.0"
+                android:valueFrom="0.0"
+                android:valueTo="100.0" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_trail_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="拖尾长度  35%"
+                android:textColor="#FFD700"
+                android:textSize="12sp" />
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/slider_trail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stepSize="5.0"
+                android:value="35.0"
+                android:valueFrom="0.0"
+                android:valueTo="100.0" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

@@ -19,7 +19,7 @@
     <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/sw_sound"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="44dp"
         android:text="烟花音效"
         android:textColor="#FFFFFF"
         android:textSize="15sp" />
@@ -27,7 +27,7 @@
     <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/sw_vibrate"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="44dp"
         android:text="震动反馈"
         android:textColor="#FFFFFF"
         android:textSize="15sp" />
@@ -50,26 +50,4 @@
         android:valueFrom="0.0"
         android:valueTo="100.0" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:gravity="center"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_preview"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="试听一声" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_close"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:text="好了" />
-    </LinearLayout>
 </LinearLayout>

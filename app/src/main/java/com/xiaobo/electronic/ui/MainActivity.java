@@ -999,56 +999,32 @@ public class MainActivity extends AppCompatActivity {
         scroll.setLayoutParams(new android.widget.ScrollView.LayoutParams(-1, Math.min(
                 (int) (getDisplayHeightPx() * 0.42f), 480)));
 
-        // 【修复】横屏下 AlertDialog 系统按钮栏会被挤压为 0 高度不可见（同浪漫设置弹窗的老病），
-        // 不再依赖 setPositiveButton，改在列表底部放显式的保存/取消按钮
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-        com.google.android.material.button.MaterialButton saveBtn =
-                new com.google.android.material.button.MaterialButton(this);
-        saveBtn.setText("保存");
-        saveBtn.setTextColor(Color.WHITE);
-        saveBtn.setBackgroundTintList(ColorStateList.valueOf(0xFFE91E63));
-        com.google.android.material.button.MaterialButton cancelBtn =
-                new com.google.android.material.button.MaterialButton(this);
-        cancelBtn.setText("取消");
-        cancelBtn.setTextColor(Color.WHITE);
-        cancelBtn.setStrokeColor(ColorStateList.valueOf(0xFFFF69B4)); // 边框按钮样式（setStyle 非公开 API 改用描边属性）
-        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(0, -2, 1f);
-        LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(0, -2, 1f);
-        cancelLp.leftMargin = 24;
-        btnRow.addView(saveBtn, saveLp);
-        btnRow.addView(cancelBtn, cancelLp);
-        box.addView(btnRow, new LinearLayout.LayoutParams(-1, -2));
-
-        final androidx.appcompat.app.AlertDialog dialog =
-                new UiGuard.SafeBuilder(this)
-                        .setTitle("烟花样式开关（启用 " + enabledCount + "/" + names.length + "）")
-                        .setMessage("勾选的样式参与点击与随机播放")
-                        .setView(scroll)
-                        .show();
-
-        saveBtn.setOnClickListener(v -> {
-            // 整体写回 MMKV 持久化
-            for (int i = 0; i < names.length; i++) {
-                MMKV.defaultMMKV().encode(styleKey(names[i]), pending[i]);
-            }
-            applyStyleFilter();
-            int on = 0;
-            StringBuilder onNames = new StringBuilder();
-            for (int i = 0; i < names.length; i++) {
-                if (pending[i]) {
-                    on++;
-                    if (onNames.length() > 0) onNames.append("、");
-                    onNames.append(names[i]);
-                }
-            }
-            Toaster.showShort("已保存：" + on + " 种样式\n" + onNames);
-            dialog.dismiss();
-        });
-        cancelBtn.setOnClickListener(v -> {
-            Toaster.showShort("已取消，未保存修改");
-            dialog.dismiss();
-        });
+        // 【修复】保存/取消改走系统按钮栏：列表很长时，画在列表末尾的按钮
+        // 必须一路滚到底才看得见（用户反馈"弹窗没有确认按钮"）。
+        // 系统按钮栏固定在窗口底部，与列表长度无关。
+        new UiGuard.SafeBuilder(this)
+                .setTitle("烟花样式开关（启用 " + enabledCount + "/" + names.length + "）")
+                .setMessage("勾选的样式参与点击与随机播放")
+                .setView(scroll)
+                .setPositiveButton("保存", (d, w) -> {
+                    // 整体写回 MMKV 持久化
+                    for (int i = 0; i < names.length; i++) {
+                        MMKV.defaultMMKV().encode(styleKey(names[i]), pending[i]);
+                    }
+                    applyStyleFilter();
+                    int on = 0;
+                    StringBuilder onNames = new StringBuilder();
+                    for (int i = 0; i < names.length; i++) {
+                        if (pending[i]) {
+                            on++;
+                            if (onNames.length() > 0) onNames.append("、");
+                            onNames.append(names[i]);
+                        }
+                    }
+                    Toaster.showShort("已保存：" + on + " 种样式\n" + onNames);
+                })
+                .setNegativeButton("取消", (d, w) -> Toaster.showShort("已取消，未保存修改"))
+                .show();
     }
 
     private int getDisplayHeightPx() {
@@ -1263,8 +1239,6 @@ public class MainActivity extends AppCompatActivity {
                 view.findViewById(R.id.btn_gen_code);
         final com.google.android.material.button.MaterialButton btnImport =
                 view.findViewById(R.id.btn_import_code);
-        final com.google.android.material.button.MaterialButton btnStart =
-                view.findViewById(R.id.btn_start);
 
         // 【#26】默认台词升级：十句完整告白（用户指定的默认预设，写满更有仪式感）
         String preset = MMKV.defaultMMKV().decodeString("last_romantic_lines",
@@ -1294,50 +1268,18 @@ public class MainActivity extends AppCompatActivity {
             pickBgmLauncher.launch(it);
         });
 
+        // 【修复】「开始表演 / 取消」改用系统按钮栏。
+        // 旧版把「开始表演」画在自定义布局最底部，横屏内容区一高它就落到屏幕外，
+        // 用户看到的就是"弹窗没有确认按钮"。系统按钮栏固定在窗口底部，内容再高也在。
         androidx.appcompat.app.AlertDialog dialog = new UiGuard.SafeBuilder(this)
                 .setTitle("开启顶级浪漫模式")
                 .setMessage("三幕剧：多句告白依次绽放 → 爱心花海 → 终章绽放，结尾有应答时刻")
                 .setView(view)
+                .setPositiveButton("开始表演 💖", (d, w) -> beginRomanticFromSettings(
+                        msgInput, timeInput, volumeSlider, herNameInput, myNameInput,
+                        recordFull, rehearsal))
+                .setNegativeButton("取消", null)
                 .show();
-
-        btnStart.setOnClickListener(v -> {
-            String message = msgInput.getText().toString().trim();
-            String timeStr = timeInput.getText().toString().trim();
-            int seconds = 3;
-            try {
-                seconds = Integer.parseInt(timeStr);
-                seconds = Math.max(1, Math.min(60, seconds)); // 放宽到 60 秒（求婚长倒数）
-            } catch (Exception e) {
-                seconds = 3;
-            }
-            countdownSeconds = seconds;
-            bgmVolume = Math.max(0f, volumeSlider.getValue() / 100f);
-            MMKV.defaultMMKV().encode(KEY_BGM_VOLUME, bgmVolume);
-            herName = herNameInput.getText().toString().trim();
-            myName = myNameInput.getText().toString().trim();
-            MMKV.defaultMMKV().encode(KEY_HER_NAME, herName);
-            MMKV.defaultMMKV().encode(KEY_MY_NAME, myName);
-            isRehearsal = rehearsal.isChecked();
-            // 彩排不录视频：自己看效果，别留下"假告白"的记录
-            pendingRecordFull = recordFull.isChecked() && !isRehearsal;
-            if (isRehearsal) rehearsal.setChecked(false); // 下次开默认是正式演出
-            dialog.dismiss();
-            MMKV.defaultMMKV().encode("last_romantic_lines", message);
-            if (isRehearsal) {
-                Toaster.showShort("🎭 彩排开始：台词加速，跳过应答与庆祝");
-                startRomanticMode(message, Math.min(seconds, 2));
-                return;
-            }
-            if (pendingRecordFull && !isRecording) {
-                // 先拿录屏授权，回调后再正式开始
-                pendingExportMessage = message;
-                MediaProjectionManager pm = (MediaProjectionManager)
-                        getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-                projectionPermissionLauncher.launch(pm.createScreenCaptureIntent());
-            } else {
-                startRomanticMode(message, seconds);
-            }
-        });
 
         // 生成分享码（v2：多段台词 + 秒数 + 音量）
         btnGenerate.setOnClickListener(v -> {
@@ -1399,6 +1341,57 @@ public class MainActivity extends AppCompatActivity {
         });
         importView.findViewById(R.id.btn_cancel).setOnClickListener(cv -> importDialog.dismiss());
         });
+    }
+
+    /**
+     * 从「顶级浪漫设置」弹窗真正开演。
+     *
+     * <p>逻辑本身没变，只是入口从布局里的按钮换成了系统按钮（positive），
+     * 系统按钮的监听拿不到弹窗内的控件变量，所以把需要的控件作为参数传进来。
+     */
+    private void beginRomanticFromSettings(
+            com.google.android.material.textfield.TextInputEditText msgInput,
+            com.google.android.material.textfield.TextInputEditText timeInput,
+            com.google.android.material.slider.Slider volumeSlider,
+            com.google.android.material.textfield.TextInputEditText herNameInput,
+            com.google.android.material.textfield.TextInputEditText myNameInput,
+            com.google.android.material.checkbox.MaterialCheckBox recordFull,
+            com.google.android.material.checkbox.MaterialCheckBox rehearsal) {
+        String message = msgInput.getText() == null ? "" : msgInput.getText().toString().trim();
+        String timeStr = timeInput.getText() == null ? "" : timeInput.getText().toString().trim();
+        int seconds = 3;
+        try {
+            seconds = Integer.parseInt(timeStr);
+            seconds = Math.max(1, Math.min(60, seconds)); // 放宽到 60 秒（求婚长倒数）
+        } catch (Exception e) {
+            seconds = 3;
+        }
+        countdownSeconds = seconds;
+        bgmVolume = Math.max(0f, volumeSlider.getValue() / 100f);
+        MMKV.defaultMMKV().encode(KEY_BGM_VOLUME, bgmVolume);
+        herName = herNameInput.getText() == null ? "" : herNameInput.getText().toString().trim();
+        myName = myNameInput.getText() == null ? "" : myNameInput.getText().toString().trim();
+        MMKV.defaultMMKV().encode(KEY_HER_NAME, herName);
+        MMKV.defaultMMKV().encode(KEY_MY_NAME, myName);
+        isRehearsal = rehearsal.isChecked();
+        // 彩排不录视频：自己看效果，别留下"假告白"的记录
+        pendingRecordFull = recordFull.isChecked() && !isRehearsal;
+        if (isRehearsal) rehearsal.setChecked(false); // 下次开默认是正式演出
+        MMKV.defaultMMKV().encode("last_romantic_lines", message);
+        if (isRehearsal) {
+            Toaster.showShort("🎭 彩排开始：台词加速，跳过应答与庆祝");
+            startRomanticMode(message, Math.min(seconds, 2));
+            return;
+        }
+        if (pendingRecordFull && !isRecording) {
+            // 先拿录屏授权，回调后再正式开始
+            pendingExportMessage = message;
+            MediaProjectionManager pm = (MediaProjectionManager)
+                    getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+            projectionPermissionLauncher.launch(pm.createScreenCaptureIntent());
+        } else {
+            startRomanticMode(message, seconds);
+        }
     }
 
     /**
@@ -3452,9 +3445,19 @@ public class MainActivity extends AppCompatActivity {
         }
         View v = getLayoutInflater().inflate(R.layout.dialog_voice_asr, null);
         android.widget.TextView tvText = v.findViewById(R.id.tv_asr_text);
+        // 【修复】取消/说完了改走系统按钮栏：横屏下弹窗高度不够，
+        // 画在内容里的按钮会被挤出屏幕（表现为"弹窗没有按钮、退不出去"）
         androidx.appcompat.app.AlertDialog dlg = new UiGuard.SafeBuilder(this)
                 .setView(v)
                 .setCancelable(false)
+                .setPositiveButton("说完了 ✓", (d, w) -> {
+                    if (UiGuard.tap()) asr.stop();
+                })
+                .setNegativeButton("取消", (d, w) -> {
+                    asr.cancel();
+                    duckBgm(false);
+                    asr.release();
+                })
                 .show();
         if (dlg == null) {
             asr.release();
@@ -3486,15 +3489,6 @@ public class MainActivity extends AppCompatActivity {
                 asr.release();
                 Toaster.showShort(message);
             }
-        });
-        v.findViewById(R.id.btn_asr_done).setOnClickListener(x -> {
-            if (UiGuard.tap()) asr.stop();
-        });
-        v.findViewById(R.id.btn_asr_cancel).setOnClickListener(x -> {
-            asr.cancel();
-            if (dlg.isShowing()) dlg.dismiss();
-            duckBgm(false);
-            asr.release();
         });
         // 录音期间压低背景音乐：不然 BGM 会被一起录进去，识别结果全是噪音
         duckBgm(true);
@@ -4292,6 +4286,8 @@ public class MainActivity extends AppCompatActivity {
                 new UiGuard.SafeBuilder(this)
                         .setTitle("崩溃日志")
                         .setView(v)
+                        // 关闭走系统按钮栏，正文再长也不会把它顶出屏幕
+                        .setNegativeButton("关闭", null)
                         .show();
 
         final String crashText = text;
@@ -4309,7 +4305,6 @@ public class MainActivity extends AppCompatActivity {
             Toaster.showShort("已清空崩溃日志");
             dialog.dismiss();
         });
-        v.findViewById(R.id.btn_crash_close).setOnClickListener(b -> dialog.dismiss());
     }
 
     /** 【新增】把最近一份崩溃日志以文件形式分享出去（比复制文本更完整） */
@@ -4447,16 +4442,77 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 从剪贴板导入分享码（菜单「📥 导入浪漫分享码」的入口）。
+     *
+     * <p>旧版这里没有确认步骤：点一下就直接开演，剪贴板没内容时也只弹一句
+     * 转瞬即逝的 Toast，用户看到的就是"点了只弹个提示、没有确认也没有取消"。
+     * 现在分两种情况都给按钮：
+     * <ul>
+     *   <li>剪贴板里有有效口令 → 「导入并开始 / 取消」确认框，先让人看清内容</li>
+     *   <li>没有口令 → 弹出输入框，手动粘贴，按钮是「取消 / 导入」</li>
+     * </ul>
+     */
     private void importRomanticCodeFromClipboard() {
         String clipText = getClipboardText();
+        if (!RomanticShareCodec.isValidCode(clipText)) {
+            showManualImportDialog(clipText);
+            return;
+        }
         RomanticShareCodec.RomanticInfo info = RomanticShareCodec.decode(clipText);
         if (info == null) {
             String reason = RomanticShareCodec.lastDecodeError;
             Toaster.showLong(reason.isEmpty() ? "剪贴板没有找到有效分享码" : "导入失败：" + reason);
             return;
         }
-        countdownSeconds = info.seconds;
-        startRomanticMode(info.message, info.seconds);
+        String preview = info.message == null ? "" : info.message.replace("\n", " / ");
+        if (preview.length() > 48) preview = preview.substring(0, 48) + "…";
+        new UiGuard.SafeBuilder(this)
+                .setTitle("📥 导入浪漫分享码")
+                .setMessage("她发来的口令里包含：\n「" + preview + "」\n"
+                        + "倒计时 " + info.seconds + " 秒"
+                        + (info.volume >= 0f ? "，音乐音量 " + Math.round(info.volume * 100) + "%" : "")
+                        + "\n\n导入后立即开始这场演出？")
+                .setPositiveButton("导入并开始", (d, w) -> {
+                    countdownSeconds = info.seconds;
+                    startRomanticMode(info.message, info.seconds);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 剪贴板里没有口令时的手动粘贴框：自带「取消 / 导入」按钮 */
+    private void showManualImportDialog(String preset) {
+        View v = getLayoutInflater().inflate(R.layout.dialog_input_text, null);
+        final com.google.android.material.textfield.TextInputLayout til = v.findViewById(R.id.til_input);
+        final com.google.android.material.textfield.TextInputEditText input = v.findViewById(R.id.et_input);
+        til.setHint("分享码");
+        til.setCounterEnabled(false);
+        input.setTextColor(Color.WHITE);
+        if (preset != null && !preset.trim().isEmpty()) input.setText(preset.trim());
+
+        final androidx.appcompat.app.AlertDialog dlg = new UiGuard.SafeBuilder(this)
+                .setTitle("📥 导入浪漫分享码")
+                .setMessage("把对方发来的口令粘进来（以 FW 开头的一串字符）")
+                .setView(v)
+                .show();
+        if (dlg == null) return;
+
+        com.google.android.material.button.MaterialButton ok = v.findViewById(R.id.btn_confirm);
+        ok.setText("导入");
+        ok.setOnClickListener(x -> {
+            String code = input.getText() == null ? "" : input.getText().toString().trim();
+            RomanticShareCodec.RomanticInfo info = RomanticShareCodec.decode(code);
+            if (info == null) {
+                String reason = RomanticShareCodec.lastDecodeError;
+                Toaster.showLong(reason.isEmpty() ? "口令无效，检查一下是不是粘全了" : "导入失败：" + reason);
+                return;
+            }
+            dlg.dismiss();
+            countdownSeconds = info.seconds;
+            startRomanticMode(info.message, info.seconds);
+        });
+        v.findViewById(R.id.btn_cancel).setOnClickListener(x -> dlg.dismiss());
     }
 
     @Override

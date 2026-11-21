@@ -19,45 +19,23 @@
     <TextView
         android:id="@+id/tv_asr_text"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_marginTop="10dp"
+        android:layout_height="96dp"
+        android:layout_marginTop="8dp"
         android:background="@drawable/bg_signature_pad"
         android:gravity="center"
         android:lineSpacingExtra="4dp"
-        android:padding="12dp"
+        android:padding="10dp"
         android:text="（在听…）"
         android:textColor="#FFFFFF"
-        android:textSize="19sp" />
+        android:textSize="18sp" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:lineSpacingExtra="2dp"
         android:text="说完停顿一下会自动结束，也可以直接点「说完了」。\n识别在手机本地完成，不联网、不上传任何录音。"
         android:textColor="#8899AA"
         android:textSize="11sp" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:gravity="center"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_asr_cancel"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="取消" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_asr_done"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:text="说完了 ✓" />
-    </LinearLayout>
 </LinearLayout>
